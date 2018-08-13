@@ -55,16 +55,6 @@ end if
 if PvNode = 0
 		mov	byte[.cutNode], r9l
 end if
-
-if RootNode =	0
-		movzx	edi, byte[rbx+State.ply]
-	if PvNode = 1
-		movzx	eax, byte[rbp-Thread.rootPos+Thread.selDepth]
-		cmp	eax, edi
-		cmovb	eax, edi
-		mov	byte[rbp-Thread.rootPos+Thread.selDepth], al
-	end if
-end if
 	; callsCnt counts down as in master
 	; resetCnt, if nonzero,	contains the count to which callsCnt should be reset
 		mov	rax, qword[rbp-Thread.rootPos+Thread.callsCnt]
@@ -81,17 +71,24 @@ end if
 	.dontchecktime:
 
 if RootNode =	0
+		movzx	edi, byte[rbx+State.ply]
 	; Step 3. mate distance	pruning
-		mov   eax, edi
-		sub   eax, VALUE_MATE
-		cmp   r12d, eax
-	      cmovl   r12d, eax
-		not   eax
-		cmp   r13d, eax
-	      cmovg   r13d, eax
-		mov   eax, r12d
-		cmp   eax, r13d
-		jge   .Return
+		mov	eax, edi
+		sub	eax, VALUE_MATE
+		cmp	r12d, eax
+	      cmovl	r12d, eax
+		not	eax
+		cmp	r13d, eax
+	      cmovg	r13d, eax
+		mov	eax, r12d
+		cmp	eax, r13d
+		jge	.Return
+	if PvNode = 1
+		movzx	eax, byte[rbp-Thread.rootPos+Thread.selDepth]
+		cmp	eax, edi
+		cmovb	eax, edi
+		mov	byte[rbp-Thread.rootPos+Thread.selDepth], al
+	end if
 end if
 ;
 ;===========================================================================
@@ -151,11 +148,8 @@ end if
 	if PvNode = 1
 		mov	dword[.beta], r13d
 	end if
-	if RootNode =	0
-		mov	dword[rbx+State.moveCount], eax
-	end if
-		mov	dword[rbx+2*sizeof.State+State.history], eax
 		mov	dword[rbx+1*sizeof.State+State.excludedMove], eax
+		mov	dword[rbx+2*sizeof.State+State.history], eax
 		mov	qword[rbx+2*sizeof.State+State.killers], rax
 
 if RootNode =	1
@@ -218,9 +212,9 @@ if RootNode =	1
 else
       MainHash_Save	.ltte, r8, r9w, edx, BOUND_NONE,	DEPTH_NONE, 0, r14w
 		jmp	.StaticValueDone
-.StaticValueYesTTHit:
-		mov	eax, dword[rbx+State.staticEval]
-		jmp	@2f
+;.StaticValueYesTTHit:
+;		mov	eax, dword[rbx+State.staticEval]
+;		jmp	@2f
 .StaticValueYesTTHit2:
 		movsx	eax, word[.ltte+MainHashEntry.eval_]
 		cmp	eax, VALUE_NONE
@@ -228,7 +222,7 @@ else
 		call	Evaluate
 	@1:
 		mov	dword[rbx+State.staticEval], eax
-	@2:
+;	@2:
 .improvingEval:
 		cmp	edi, VALUE_NONE		;if no .ttHit edi = VALUE_NONE
 		je	.StaticValueDone0
@@ -240,9 +234,8 @@ else
 .StaticValueDone0:
 		mov	r14d,eax
 .StaticValueDone:
-		or	r15l, JUMP_IMM_2 + JUMP_IMM_3
-		mov	dl, r15l
-		and	dl, not JUMP_IMM_6
+		or	r15l, JUMP_IMM_2
+		mov	dl, JUMP_IMM_2
 end if	;RootNode = 0
 		mov	ecx, dword[rbx-2*sizeof.State+State.staticEval]
 		cmp	dword[rbx-0*sizeof.State+State.staticEval], ecx
@@ -253,34 +246,38 @@ end if	;RootNode = 0
 		mov	word[rbx+State.flags],	dx   ; should be 0 or 1	; +State.improving
 
 if RootNode =	0
-		mov	ecx, dword[rbp+Pos.sideToMove]
-		movzx	ecx, word[rbx+State.npMaterial+2*rcx]
-		test	ecx, ecx
-		jz	.moves_loopex
-		and	r15l, not (JUMP_IMM_3+JUMP_IMM_6)
-		mov	byte[rbx+State.flags], r15l
+;		mov	ecx, dword[rbp+Pos.sideToMove]
+;		movzx	ecx, word[rbx+State.npMaterial+2*rcx]
+;		test	ecx, ecx
+;		jz	.moves_loopex
+;		and	r15l, not (JUMP_IMM_3+JUMP_IMM_6)
+;		mov	byte[rbx+State.flags], r15l
 		;r12 = .alpha r14 = .evalu;  rsi = .depth
 
 	    ; Step 6. Razoring (skipped	when in	check)
 	if PvNode = 0
-		cmp	esi, 3*ONE_PLY
+		cmp	esi, 2*ONE_PLY
 		jge	.6skip
-		mov	ecx, 600		; dword[RazorMargin+4*rsi]
-		lea	edx, [r14+rcx]
+;		cmp	byte[rbx+State.improving], 0
+;		jne	.6skip
+		lea	edx, [r14+600]
 		cmp	edx, r12d
 		jg	.6skip
+;		mov	ecx, 590		; RazorMargin
 		xor	r8d, r8d
-		cmp	esi, ONE_PLY
-		cmovle	ecx, r8d
-		mov	edi, r12d
-		sub	edi, ecx
-		mov	ecx, edi
-		lea	edx, [rdi+1]
+;		cmp	esi, ONE_PLY
+;		cmovle	ecx, r8d
+;		mov	edi, r12d
+;		sub	edi, ecx
+;		mov	ecx, edi
+		mov	ecx, r12d
+		lea	edx, [rcx+1]
 		call	QSearch_NonPv_NoCheck
-		cmp	eax, edi		; edi	= .ralpha
-		jle	.Return
-		cmp	esi, 2*ONE_PLY
-		jl	.Return
+		jmp	.Return
+;		cmp	eax, edi		; edi	= .ralpha
+;		jle	.Return
+;		cmp	esi, 2*ONE_PLY
+;		jl	.Return
 .6skip:
 	end if
 
@@ -289,8 +286,6 @@ if RootNode =	0
 		jge	._7skip
 		cmp	r14d, VALUE_KNOWN_WIN
 		jge	._7skip
-;		cmp	byte[rbx+State.capturedPiece], 0
-;		jne	._7skip			; Trust SeeTest
 		movzx	edx, byte[rbx+State.improving]
 		neg	edx
 		and	edx, 50
@@ -312,8 +307,11 @@ if RootNode =	0
 	if PvNode = 0	; null & ProbCut
 		cmp	r12d, r14d	; r12d =.alpha, r14d =.evalu
 		jge	.8skip
-;		cmp	dword[rbx-1*sizeof.State+State.history], 22500
-;		jge	.8skip
+		cmp	dword[rbx-1*sizeof.State+State.history], 23200	;22500
+		jge	.8skip
+		mov	ecx, dword[rbp+Pos.sideToMove]
+		cmp	word[rbx+State.npMaterial+2*rcx], 0
+		je	.8skip
 		imul	eax, esi,	36
 		add	eax, dword[rbx+State.staticEval]
 		lea	edx, [r12+1+225]
@@ -1137,6 +1135,10 @@ end if
 		mov	eax, esi		; .depth harus esi
 		imul	eax, eax
 		lea	r10d, [rax+2*rsi-2]
+		xor	edx,edx
+		cmp	esi, 17
+		cmovg	r10d, edx
+		;29dd+138*d-134
     ; r15d = offset of [piece_on(prevSq),prevSq]
     ; ecx = move
     ; esi = depth
@@ -1215,7 +1217,8 @@ end if
 		xor	r10d, r10d
 		cmp	edi, r12d	;dword[.beta]
 		setg	r10l		;setge
-		add	r10d, BOUND_UPPER
+		;add	r10d, BOUND_UPPER
+		inc	r10d
   else
 		mov	ecx, BOUND_LOWER
 		cmp	eax, 1

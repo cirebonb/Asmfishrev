@@ -47,6 +47,8 @@ DontUpdateKillers:
 		mov	dword[rax+4*prevOffset], move
 DontUpdateOpp:
 
+		test	absbonus,absbonus
+		jz	Return
 		cmp	absbonus, 324
 		jae	Return		;BonusTooBig
 		imul	bonus32, absbonus, 32
@@ -106,6 +108,8 @@ macro UpdateCaptureStats move, captures, captureCnt, bonusW, absbonus
 	; it also might clobber rsi
   local Skipit, NextCapture, Return
 
+		test	absbonus,absbonus
+		jz	Return
 		cmp	absbonus, 324
 		jae	Return		;BonusTooBig
 ;           imul  bonusW, absbonus, 32		;2

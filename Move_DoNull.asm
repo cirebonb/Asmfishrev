@@ -44,6 +44,8 @@ Move_DoNull:
 		mov	dword[rbx+2*sizeof.State+State.history], eax
 		mov	qword[rbx+1*sizeof.State+State.checkSq+8*King], rax
 		mov	qword[rbx+1*sizeof.State+State.checkersBB], rax
+		mov	dword[rbx+State.moveCount], eax
+
 if 0
 		movzx	ecx, byte[rbx+State.pliesFromNull]
 		inc	ecx
@@ -145,36 +147,38 @@ end if
 		cmovnz	r10, r8
 		cmovnz	r8, r15
 
-		mov	r15l, JUMP_IMM_3+JUMP_IMM_2
-		mov	dl, r15l
+		mov	r15l, JUMP_IMM_2+JUMP_IMM_3
+		mov	dx, JUMP_IMM_2
 		mov	ecx, dword[rbx-2*sizeof.State+State.staticEval]
-		mov	eax, dword[rbx-1*sizeof.State+State.staticEval]
-		neg	eax
-		add	eax, 2*Eval_Tempo
-		cmp	eax, ecx
+		mov	r11d, dword[rbx-1*sizeof.State+State.staticEval]
+		neg	r11d
+		add	r11d, 2*Eval_Tempo
+		xor	eax, eax
+
+		cmp	r14d, eax
+		jle	.notnecessary
+		not	r9d				; r9d = .cutNode
+		cmp	r11d, ecx
 		setge	dh
 		cmp	ecx, VALUE_NONE			; incheck?
 		sete	cl
 		or	dh, cl
-		mov	word[rbx+State.flags], dx	; +State.improving
-		mov	dword[rbx+State.staticEval], eax
-		mov	qword[rbx+State.dcCandidates], r10
-		mov	qword[rbx+State.pinned], r8
-		;
 		mov	ecx, CmhDeadOffset
 		add	rcx, qword[rbp+Pos.counterMoveHistory]
 		mov	qword[rbx-1*sizeof.State+State.counterMoves], rcx
 		mov	dword[rbx-1*sizeof.State+State.currentMove], MOVE_NULL	;
+	.notnecessary:
+		;
+		mov	word[rbx+State.flags], dx	; +State.improving
+		mov	dword[rbx+State.staticEval], r11d
+		mov	qword[rbx+State.dcCandidates], r10
+		mov	qword[rbx+State.pinned], r8
+		;
 
-		not	r9d				; r9d = .cutNode
 		mov	r8d, r14d			; .depth-R
-;		mov	edx, r12d
-;		neg	edx
-;		lea	ecx, [rdx-1]
 		lea	ecx, [r12+1]
 		neg	ecx
 		lea	edx, [rcx+1]
-		xor	eax, eax
 		cmp	r8d, eax			; ONE_PLY
 		cmovl	r8d, eax
 		setg	al				; setge

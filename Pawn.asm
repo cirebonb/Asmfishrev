@@ -183,12 +183,12 @@ Neighbours_True__Lever_False__RelRank_big:
 		xor	r10, r10
 Continue:
 	if CPU_HAS_POPCNT = 1
-		popcnt	rax, r8
-		popcnt	r9, rbx
+		popcnt		rax, r8
+		popcnt		r9, rbx
 	else
-		_popcnt   rax, r8, r9
-		push	r10             
-		_popcnt	r9, rbx, r10
+		push	r10
+		_popcnt		rax, r8, r10
+		_popcnt		r9, rbx, r10
 		pop	r10
 	end if
 		neg	r11d
@@ -196,7 +196,6 @@ Continue:
 		adc	r11d, r11d
 		lea	r11d, [3*r11]
 		add	r11d, eax
-;		lea	r11d, [3*r11+rax]
 		lea	r11d, [8*r11+r12]
     ; r11 = [opposed][!!phalanx][popcount(supported)][relative_rank(Us, s)]
 		or	rbx, r8
@@ -214,8 +213,8 @@ Continue:
 		pop	r10
     ; r10 = stoppers
 		mov	r12, r10
-		test	r15, qword[ForwardBB+8*(64*Us+rcx)]
-		jnz	NoPassed
+;		test	r15, qword[ForwardBB+8*(64*Us+rcx)]	;not needed?
+;		jnz	NoPassed				;not needed?
 		mov	r11, qword[PawnAttacks+8*(64*Us+rcx)]
 		and	r11, r14
 	; r11 = lever

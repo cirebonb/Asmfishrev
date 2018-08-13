@@ -4,7 +4,7 @@ if 1
 	if USE_LAST_PATCH = 1	;weak
 	Connectivity	        = ( 3 shl 16) + ( 1)
 	end if
-	Hanging 		= ( 52 shl 16) + ( 30)	;( 48 shl 16) + ( 27)
+	Hanging 		= ( 57 shl 16) + ( 32)	;( 52 shl 16) + ( 30)	;( 48 shl 16) + ( 27)
 	HinderPassedPawn        = (  5 shl 16) + (  -1)	;(  8 shl 16) + (  1)
 	KnightOnQueen		= ( 21 shl 16) + ( 11)
 	LongRangedBishop        = ( 22 shl 16) + (  0)
@@ -13,7 +13,7 @@ if 1
 	Overload	        = ( 10 shl 16) + ( 5)
 	end if
 	PawnlessFlank		= ( 20 shl 16) + ( 80)
-	RookOnPawn		= (  8 shl 16) + ( 24)
+	RookOnPawn		= (  10 shl 16) + ( 30)	;(  8 shl 16) + ( 24)
 	SliderOnQueen		=  ( 42 shl 16) + ( 21)
 	ThreatBySafePawn        = (165 shl 16) + (133)	;(175 shl 16) + (168)
 	ThreatByRank		= ( 16 shl 16) + (  3)

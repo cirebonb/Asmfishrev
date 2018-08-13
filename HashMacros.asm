@@ -4,12 +4,6 @@ macro MainHash_Save lcopy, entr, key16, vvalue, bbounder, ddepth, mmove, eev
 
 ;ProfileInc MainHash_Save
 
-  if vvalue eq edx
-  else if vvalue eq 0
-                xor   edx, edx
-  else
-    err 'val argument of HashTable_Save is not edx or 0'
-  end if
 
   if mmove eq eax
   else if mmove eq 0
@@ -18,53 +12,41 @@ macro MainHash_Save lcopy, entr, key16, vvalue, bbounder, ddepth, mmove, eev
     err 'move argument of HashTable_Save is not eax or 0'
   end if
 
-		mov   rcx, qword[entr]
-		mov   qword[lcopy], rcx
-
-		mov   r11, entr
-		shr   r11d, 3  -  1
-		and   r11d, 3 shl 1
+		mov	r11, entr
+		shr	r11d, 3  -  1
+		and	r11d, 3 shl 1
 	     Assert   b, r11d, 3 shl 1, 'index 3 in cluster encountered'
-		neg   r11
-		lea   r11, [8*3+3*r11]
+		neg	r11
+		lea	r11, [8*3+3*r11]
 
-		cmp   key16, word[r11+entr]
-		jne   write_everything
-
+		cmp	key16, word[r11+entr]
+		jne	write_everything
+		mov	rcx, qword[entr]
+		mov	qword[lcopy], rcx
 if mmove eq 0
-	if bbounder eq BOUND_EXACT
-		jmp   write_after_move
-	else
-	end if
 else
-		test   eax, eax
+		test	eax, eax
 	if bbounder eq BOUND_EXACT
-		jz   write_after_move
+		jz	write_after_move
 	else
-		jz   dont_write_move
+		jz	dont_write_move
 	end if
-;		shl	eax, 16
 		mov	word[lcopy+MainHashEntry.move], ax
 end if
-
-dont_write_move:
-
-  if bbounder eq BOUND_EXACT
+	if bbounder eq BOUND_EXACT
 		jmp	write_after_move
-  else
-	if bbounder eq dil
-		cmp	bbounder, BOUND_EXACT
-		je	write_after_move
-	else if bbounder eq r10l
-		cmp	bbounder, BOUND_EXACT
-		je	write_after_move
-	end if
+	else
+dont_write_move:
+		if bbounder eq r10l
+			cmp	bbounder, BOUND_EXACT
+			je	write_after_move
+		end if
 		mov	al, ch	;byte[lcopy+MainHashEntry.depth]
 		sub	al, 4
 		cmp	al, ddepth
 		jl	write_after_move
 		jmp	done
-  end if
+	end if
 
 write_everything:
 		mov	word[lcopy+MainHashEntry.move], ax
@@ -84,8 +66,18 @@ write_after_move:
 		mov	al, byte[mainHash.date]
 		or	al, bbounder
 		mov	word[lcopy+MainHashEntry.genBound], ax
+	if vvalue eq edx
 		shl	edx, 16
 		mov	dx, eev
+	else if vvalue eq 0
+		if	eev eq VALUE_NONE
+			mov	edx, 0x7D02
+		else
+			movzx	edx, eev
+		end if
+	else
+		err	'val argument of HashTable_Save is not edx or 0'
+	end if
 		mov	dword[lcopy+MainHashEntry.eval_], edx
 done:
 		mov	rax, qword[lcopy]

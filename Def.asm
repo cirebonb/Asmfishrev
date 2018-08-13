@@ -90,17 +90,17 @@ ALL_PIECES     = 0
 QUEEN_DIAGONAL = 1
 
 ; piece values
-PawnValueMg   = 171
+PawnValueMg   = 175	;171
 KnightValueMg = 764
-BishopValueMg = 826
+BishopValueMg = 815	;826
 RookValueMg   = 1282
-QueenValueMg  = 2526
+QueenValueMg  = 2500	;2526
 
 PawnValueEg   = 240
 KnightValueEg = 848
-BishopValueEg = 891
+BishopValueEg = 905	;891
 RookValueEg   = 1373
-QueenValueEg  = 2646
+QueenValueEg  = 2670	;2646
 
 MidgameLimit = 15258
 EndgameLimit = 3915

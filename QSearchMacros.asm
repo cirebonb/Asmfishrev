@@ -319,6 +319,13 @@ end if
 		jmp	.Return
 
 .FailHighValueToTT:
+;		movzx	ecx, byte[rbx+State.ply]
+;		mov	eax, edx
+;		sar	eax, 31
+;		xor	ecx, eax
+;		sub	edx, eax
+;		add	edx, ecx
+
 	      movzx   edx, byte[rbx+State.ply]
 		mov   eax, edi
 		sar   eax, 31
@@ -329,14 +336,12 @@ end if
 
 
 .MovePickDone:
+if InCheck = 1
+		cmp	r12w, -VALUE_INFINITE
+		je	.MATE
+end if
 		shr	esi, 16			; .bestMove
 		movsx	r12d, r12w		; .bestValue
-if InCheck = 1
-		movzx	eax, byte[rbx+State.ply]
-                sub	eax, VALUE_MATE
-                cmp	r12d, -VALUE_INFINITE
-		je	.Return
-end if
 		mov	r8, qword[rbx+State.tte]
 		mov	r9d, dword[rbx+State.key+6]
 		mov	edx, r12d
@@ -348,12 +353,12 @@ end if
   if PvNode = 0
       MainHash_Save	.ltte, r8, r9w, edx, BOUND_UPPER, byte[.ttDepth], eax, word[rbx+State.staticEval]
   else
-		mov	edi, dword[.oldAlpha]
-		sub	edi, r12d
-		sar	edi, 31
-		and	edi, BOUND_EXACT-BOUND_UPPER
-		add	edi, BOUND_UPPER
-      MainHash_Save	.ltte, r8, r9w, edx, dil, byte[.ttDepth], eax, word[rbx+State.staticEval]
+		mov	r10d, dword[.oldAlpha]
+		sub	r10d, r12d
+		sar	r10d, 31
+		and	r10d, BOUND_EXACT-BOUND_UPPER	;=2
+		inc	r10d				;+1
+      MainHash_Save	.ltte, r8, r9w, edx, r10l, byte[.ttDepth], eax, word[rbx+State.staticEval]
   end if
 		mov	eax, r12d
 
@@ -363,7 +368,15 @@ Display 2, "QSearch returning %i0%n"
 		add	rsp, .localsize
 		pop	r15 r14 r13 r12 rdi rsi
 		ret
-
+if InCheck = 1
+             calign   8
+.MATE:
+		movzx	eax, byte[rbx+State.ply]
+                sub	eax, VALUE_MATE
+		add	rsp, .localsize
+		pop	r15 r14 r13 r12 rdi rsi
+		ret
+end if
 
   if InCheck = 0
              calign   8
@@ -397,8 +410,8 @@ Display 2, "QSearch returning %i0%n"
                 mov	r8, qword[rbx+State.tte]
 		mov	r9d, dword[rbx+State.key+6]
 		mov	edx, eax
-		add	eax, VALUE_MATE_IN_MAX_PLY
-		cmp	eax, 2*VALUE_MATE_IN_MAX_PLY
+		lea	r10d, [rax+VALUE_MATE_IN_MAX_PLY]
+		cmp	r10d, 2*VALUE_MATE_IN_MAX_PLY
 		jae	.ReturnStaticValue_ValueToTT
 .ReturnStaticValue_ValueToTTRet:
       MainHash_Save   .ltte, r8, r9w, edx, BOUND_LOWER, DEPTH_NONE, 0, word[rbx+State.staticEval]
@@ -407,14 +420,29 @@ Display 2, "QSearch returning %i0%n"
              calign   8
 .ReturnStaticValue_ValueToTT:
 		movzx	ecx, byte[rbx+State.ply]
-		mov	eax, edx
 		sar	eax, 31
 		xor	ecx, eax
 		sub	edx, eax
 		add	edx, ecx
 		jmp	.ReturnStaticValue_ValueToTTRet
   end if	;InCheck = 0
+             calign   8
+.ValueToTT:
+		movzx	edx, byte[rbx+State.ply]
+		mov	eax, r12d
+		sar	eax, 31
+		xor	edx, eax
+		sub	edx, eax
+		add	edx, r12d
 
+;		movzx	ecx, byte[rbx+State.ply]
+;		mov	eax, edx
+;		sar	eax, 31
+;		xor	ecx, eax
+;		sub	edx, eax
+;		add	edx, ecx
+
+		jmp	.ValueToTTRet
              calign   8
 .ValueFromTT:
 		; value in edi is not VALUE_NONE
@@ -425,14 +453,5 @@ Display 2, "QSearch returning %i0%n"
 		add	edi, r8d
 		sub	edi, r9d
                 jmp	.ValueFromTTRet
-             calign   8
-.ValueToTT:
-              movzx   edx, byte[rbx+State.ply]
-                mov   eax, r12d
-                sar   eax, 31
-                xor   edx, eax
-                sub   edx, eax
-                add   edx, r12d
-                jmp   .ValueToTTRet
 
 end macro

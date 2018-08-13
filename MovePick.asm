@@ -341,7 +341,12 @@ MovePick_PROBCUTINIT:
 		; initialize movepick
 		; r13d	= .beta r12 = .alpha
 		; ecx	= .ttMove
-		lea	edi, [r12+1+200]
+		;lea	edi, [r12+1+200]		;original
+		movzx	eax, byte[rbx+State.improving]	;1
+		neg	eax				;2
+		and	eax, -48
+		lea	edi, [r12+1+216+rax]
+
 		mov	eax, VALUE_INFINITE
 		cmp	edi, eax
 		cmovg	edi, eax
