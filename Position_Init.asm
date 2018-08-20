@@ -160,6 +160,18 @@ end virtual
 		cmp   r15d, King
 		jbe   .TypeLoop
 
+if USE_GAMECYCLE = 1
+                xor	eax,eax
+		lea	rdi, [cuckoo]
+		mov	ecx,8192
+		rep	stosq
+                lea   rdi, [cuckooMove]
+		mov	ecx,8192
+		rep	stosw
+		call	Init_cuckoo
+end if
+
+
 	      .Return:
 		add   rsp, .localsize
 		pop   r15 r14 r13 r12 rdi rsi rbx

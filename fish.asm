@@ -30,10 +30,9 @@ SetDefault 0, USE_SPAMFILTER
 SetDefault 0, USE_WEAKNESS
 SetDefault 0, USE_VARIETY
 SetDefault 0, USE_MATEFINDER
-SetDefault 0, QUEENTHREAT
 SetDefault 0, USE_LAST_PATCH
-SetDefault 0, SUFFLEMOVE
 SetDefault 0, MATERIALDRAW
+SetDefault 1, USE_GAMECYCLE
 
 SetDefault 1, PEDANTIC
 SetDefault '<empty>', LOG_FILE  ; use something other than <empty> to hardcode a starting log file into the engine

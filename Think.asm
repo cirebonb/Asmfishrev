@@ -23,7 +23,7 @@ end virtual
 		mov   rbx, qword[rbp+Pos.state]
 
         xor   eax, eax
-;mov	byte[options.displayInfoMove+1], al
+		mov	word[rbx+State.ply], ax
 
 		mov   dword[.lastBestMove], eax
 		mov   dword[.lastBestMoveDepth], eax
@@ -40,15 +40,14 @@ end virtual
 		mov   r9d, CmhDeadOffset
 		add   r9, qword[rbp+Pos.counterMoveHistory]
 .clear_stack:
-		xor   eax, eax
-		mov	word[rdx+State.ply], ax	;new.....
-		lea   rdi, [rdx+State._stack_start]
-		mov   ecx, State._stack_end-State._stack_start
-	  rep stosb
-		mov   qword[rdx+State.counterMoves], r9
-		add   rdx, sizeof.State
-		cmp   rdx, r8
-		 jb   .clear_stack
+		xor	eax, eax
+		lea	rdi, [rdx+State._stack_start]
+		mov	ecx, State._stack_end-State._stack_start
+		rep	stosb
+		mov	qword[rdx+State.counterMoves], r9
+		add	rdx, sizeof.State
+		cmp	rdx, r8
+		 jb	.clear_stack
 
 	; set move list for current state
 		mov   rax, qword[rbp+Pos.moveList]

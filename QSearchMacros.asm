@@ -70,7 +70,7 @@ end if
 	; transposition table lookup
 
 		call	MainHash_Probe
-		mov	qword[.ltte], rcx
+;		mov	qword[.ltte], rcx
 		mov	rdi, rcx
 		sar	rdi, 48				; MainHashEntry.value_ 48-16=32
 		test	edx, edx			; .ttHit

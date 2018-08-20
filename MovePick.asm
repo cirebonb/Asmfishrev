@@ -378,8 +378,9 @@ MovePick_PROBCUTINIT:
 		jz	.9NoTTMove		;Zero = 1
 		mov	eax, ecx
 .9NoTTMove:
-		mov	r13d, eax
-;		mov	dword[rbx+State.ttMove], eax
+;		mov	r13d, eax
+		mov	r13d, 3
+		mov	dword[rbx+State.ttMove], eax
 		test	eax, eax
 		jz	MovePick_PROBCUT_GEN
 		call	Move_IsLegal
@@ -389,6 +390,7 @@ MovePick_PROBCUTINIT:
 		lea	rax, [MovePick_PROBCUT_GEN]
 		mov	qword[rbx+State.stage], rax
 		mov	qword[rbx+State.endMoves], r15
+		dec	r13d
 		;	ecx	= State.ttMove;	flags !zero
 		ret
 	     calign   16, MovePick_PROBCUT
@@ -396,15 +398,13 @@ MovePick_PROBCUT_GEN:
 		mov	rdi, qword[rbx-1*sizeof.State+State.endMoves]
 		mov	r14, rdi
 		or	r15, -1
+	       push	r13
 	       call	Gen_Captures			;esi secure
+		pop	r13
 		mov	r15, rdi
 		mov	r11, r14
       ScoreCaptures	r11, rdi, WhileDone4
 		mov	edi, dword[rbx+State.endBadCaptures]		; .rbeta
-		mov	r13d,dword[rbx+State.ttMove]
-;		lea	rax, [r14+6*sizeof.ExtMove]			; bound cut
-;		cmp	r15, rax
-;		cmovg	r15, rax
 		lea	rax, [MovePick_PROBCUT]
 		mov	qword[rbx+State.stage], rax
 		mov	qword[rbx+State.endMoves], r15
@@ -412,13 +412,15 @@ MovePick_PROBCUT_GEN:
 	WhileDone4:
 		ret
 MovePick_PROBCUT:
+		dec	r13d
+		jz	WhileDone4
 		mov	r14, qword[rbx+State.cur]
 		mov	r15, qword[rbx+State.endMoves]
 	   @1:
 		cmp	r14, r15
 		je	WhileDone4
 	   PickBest   r14, r11, r15
-		cmp	ecx, r13d		;dword[rbx+State.ttMove]
+		cmp	ecx, dword[rbx+State.ttMove]
 		je	@1b
 		mov	edx, dword[rbx+State.endBadCaptures+4]						; .threshold
 		call	SeeTestGe

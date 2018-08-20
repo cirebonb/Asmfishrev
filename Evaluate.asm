@@ -1200,88 +1200,6 @@ ThreatQueenSkip:
 ;end if
 end macro
 
-
-
-
-macro EvalQueenThreats Us, labelexit
-
-  local Them
-  local PiecesUs, PiecesThem
-  local skip_testQueen, loopbitqueen
-  if Us	= White
-	PiecesUs	equ r14
-	PiecesThem	equ r15
-	Them            = Black
-  else
-	PiecesUs	equ r15
-	PiecesThem	equ r14
-	Them		= White
-  end if
-
-
-	cmp	dword[rbp+Pos.sideToMove], Them
-	jnz	skip_testQueen
-	mov	rcx, qword[.ei.attackedBy+8*(8*Them+Queen)]
-	and	rcx, qword[.ei.attackedBy+8*(8*Us+King)]
-	test	rcx,rcx			;Qatt[us]
-	jz	skip_testQueen
-	;mov	rax, qword[.ei.attackedBy+8*(8*Them+0)]		;without their queen attack and king attack how??
-	mov	rax, qword[.ei.attackedBy+8*(8*Them+Pawn)]
-	or	rax, qword[.ei.attackedBy+8*(8*Them+Knight)]
-	or	rax, qword[.ei.attackedBy+8*(8*Them+Bishop)]
-	or	rax, qword[.ei.attackedBy+8*(8*Them+Rook)]
-	and	rcx, rax					;rcx = Target King Box
-	jz	skip_testQueen
-
-	mov	rdx, qword[.ei.attackedBy+8*(8*Them+King)]
-	or	rdx, rax					;attacked bythem
-
-	mov	r11, rdx
-	or	r11, PiecesUs					;qword[rbp+Pos.typeBB+8*Us]
-	not	r11
-	and	r11, qword[.ei.attackedBy+8*(8*Us+King)]	;safe escape
-
-	;mov	rax, qword[.ei.attackedBy+8*(8*Us+0)]		;all piece attacked without king attack how??
-	mov	rax, qword[.ei.attackedBy+8*(8*Us+Pawn)]
-	or	rax, qword[.ei.attackedBy+8*(8*Us+Knight)]
-	or	rax, qword[.ei.attackedBy+8*(8*Us+Bishop)]
-	or	rax, qword[.ei.attackedBy+8*(8*Us+Rook)]
-	or	rax, qword[.ei.attackedBy+8*(8*Us+Queen)]
-	or	rax, PiecesThem					; qword[rbp+Pos.typeBB+8*Them]
-	not	rax						;~(OppOcc|myattacked)
-	and	rcx, rax					;T &=~(OppOcc|myattacked)
-	and	rcx, rdx					;T &=~(OppOcc|myattacked) & OppAttExclQueenAtt
-								;Target of enemy Queen = T ,rdx free
-	mov	rax, PiecesUs					;qword[rbp+Pos.typeBB+8*White]
-	or	rax, PiecesThem					;qword[rbp+Pos.typeBB+8*Black]
-								;rax Occupied
-
-	movzx	r12d, byte[rbp+Pos.pieceList+16*(8*Us+King)]
-	shl	r12, 6+3
-
-loopbitqueen:
-	bsf	r10, rcx
-	jz	skip_testQueen
-	_blsr   rcx, rcx, r8
-
-	QueenAttacks rdx, r10, rax, r9, r8
-	not	rdx
-	and	rdx, [Evade+r12+8*r10]				;escape
-	and	rdx, r11
-	jnz	loopbitqueen
-	movzx   ecx, byte[rbx+State.ply]
-	mov	eax, VALUE_MATE
-	sub	eax, ecx
-	jmp	labelexit
-
-
-;	Display 0, "info string queen_threat %i10 <== %n"
-skip_testQueen:
-
-end macro
-
-
-
 macro EvalPassedPawns Us
 	; in: rbp position
 	;     rbx state
@@ -1801,11 +1719,6 @@ or	rdx, r15
 
 		mov   r14, qword[rbp+Pos.typeBB+8*White]
 		mov   r15, qword[rbp+Pos.typeBB+8*Black]
-
-if QUEENTHREAT = 1
-	EvalQueenThreats   Black, .JUMPINGEXIT
-	EvalQueenThreats   White, .JUMPINGEXIT
-end if
 
 		mov   r12, qword[.ei.attackedBy+8*(8*White+0)]
 		mov   r13, qword[.ei.attackedBy+8*(8*Black+0)]

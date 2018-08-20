@@ -77,9 +77,6 @@ InFrontBB       rq 2*8
 AdjacentFilesBB rq 8
 FileBB          rq 8
 RankBB          rq 8
-if QUEENTHREAT = 1
-Evade		rq 64*64
-end if
 ;;;;;;;;;;;;;;;;;;;; DoMove data ;;;;;;;;;;;;;;;;;;;;;;;;
               align   64
 Scores_Pieces:	   rq 16*64
@@ -95,6 +92,13 @@ PieceSee_MG:	   rd 16
 IsNotPawnMasks:    rb 16
 IsNotPieceMasks:   rb 16
 IsPawnMasks:	   rb 16
+;
+if USE_GAMECYCLE <> 0
+              align   64
+cuckoo:			rq 8192
+cuckooMove:		rw 8192
+end if
+;
 
 ;;;;;;;;;;;;;;;;;;;; data for search ;;;;;;;;;;;;;;;;;;;;;;;
               align   4096

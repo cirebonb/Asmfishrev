@@ -85,7 +85,7 @@ ThreadPool_ReadOptions:
 		mov   dword[threadPool.threadCnt], edi
 		jmp   .CheckDelete
 
-calign   8		;addition arif
+		calign   16
 ThreadPool_NodesSearched_TbHits:
 		xor	ecx, ecx
 		xor	eax, eax

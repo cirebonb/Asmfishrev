@@ -1004,9 +1004,9 @@ Position_ParseFEN:
 .FiftyMoves:
            call   SkipSpaces
            call   ParseInteger
-            ;mov   byte[rbx+State.rule50], al
+;            mov   byte[rbx+State.rule50], al
 		movzx	eax, al
-		mov   dword[rbx+State.rule50],eax ; .pliesFromNull 0 + .ply 0 
+		mov   word[rbx+State.rule50],ax ; .pliesFromNull 0 + .ply 0 
 .MoveNumber:
            call   SkipSpaces
            call   ParseInteger

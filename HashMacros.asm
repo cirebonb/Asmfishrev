@@ -1,6 +1,6 @@
 
 macro MainHash_Save lcopy, entr, key16, vvalue, bbounder, ddepth, mmove, eev
-  local dont_write_move, write_everything, write_after_move, done
+  local dont_write_move, write_everything, write_after_move, done, norewrite
 
 ;ProfileInc MainHash_Save
 
@@ -49,7 +49,28 @@ dont_write_move:
 	end if
 
 write_everything:
+	match size[addr], ddepth
+		if bbounder eq BOUND_NONE
+			test	eax,eax
+			jnz	norewrite
+		else
+			test	eax, eax
+			cmovz	ax,word[rbx+State.ttMove]
+		end if
+	else
+		if ddepth eq DEPTH_NONE
+			test	eax,eax
+			jnz	norewrite
+		else if bbounder eq BOUND_EXACT
+			test	eax,eax
+			jnz	norewrite
+		else
+			test	eax, eax
+			cmovz	ax,word[rbx+State.ttMove]
+		end if
+	end match
 		mov	word[lcopy+MainHashEntry.move], ax
+norewrite:
 		mov	word[r11+entr], key16
 write_after_move:
 	

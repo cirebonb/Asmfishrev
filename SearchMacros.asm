@@ -28,10 +28,6 @@ macro search RootNode, PvNode
     			rb 1
 			rb 1    ; -1 for true
 			rb 1
-if SUFFLEMOVE = 100 
-    .sufflemove		rd	1	;SUFFLEMOVE = 1 used
-			rd	1
-end if
     .quietsSearched	rd 64
     .capturesSearched	rd 32
     if PvNode =	1
@@ -104,7 +100,7 @@ else
 		mov	r15l, byte[rbx+State.flags]
 end if
 		call	MainHash_Probe
-		mov	qword[.ltte], rcx
+;		mov	qword[.ltte], rcx
 if RootNode =	1
 		imul	ecx, dword[rbp-Thread.rootPos+Thread.PVIdx], sizeof.RootMove
 		add	rcx, qword[rbp+Pos.rootMovesVec+RootMovesVec.table]
@@ -201,20 +197,19 @@ end if	;RootNode =	1
 if RootNode =	1
 		test	r15l, JUMP_IMM_6
 		jnz	@3f
+		movzx	r10d, word[.ltte+MainHashEntry.move]
 end if		
 		mov	r8, qword[rbx+State.tte]
 		mov	r9d, dword[.posKey]
 		mov	edx, VALUE_NONE
+      MainHash_Save	.ltte, r8, r9w, edx, BOUND_NONE,	DEPTH_NONE, 0, r14w
+
 if RootNode =	1
-      MainHash_Save	.quietCount, r8, r9w, edx, BOUND_NONE,	DEPTH_NONE, 0, r14w
+		mov	word[.ltte+MainHashEntry.move], r10w
 	@3:
 		mov	dl, JUMP_IMM_2
 else
-      MainHash_Save	.ltte, r8, r9w, edx, BOUND_NONE,	DEPTH_NONE, 0, r14w
 		jmp	.StaticValueDone
-;.StaticValueYesTTHit:
-;		mov	eax, dword[rbx+State.staticEval]
-;		jmp	@2f
 .StaticValueYesTTHit2:
 		movsx	eax, word[.ltte+MainHashEntry.eval_]
 		cmp	eax, VALUE_NONE
@@ -222,7 +217,6 @@ else
 		call	Evaluate
 	@1:
 		mov	dword[rbx+State.staticEval], eax
-;	@2:
 .improvingEval:
 		cmp	edi, VALUE_NONE		;if no .ttHit edi = VALUE_NONE
 		je	.StaticValueDone0
@@ -246,52 +240,36 @@ end if	;RootNode = 0
 		mov	word[rbx+State.flags],	dx   ; should be 0 or 1	; +State.improving
 
 if RootNode =	0
-;		mov	ecx, dword[rbp+Pos.sideToMove]
-;		movzx	ecx, word[rbx+State.npMaterial+2*rcx]
-;		test	ecx, ecx
-;		jz	.moves_loopex
-;		and	r15l, not (JUMP_IMM_3+JUMP_IMM_6)
-;		mov	byte[rbx+State.flags], r15l
-		;r12 = .alpha r14 = .evalu;  rsi = .depth
-
-	    ; Step 6. Razoring (skipped	when in	check)
+		; r12 = .alpha r14 = .evalu;  rsi = .depth
+		; Step 6. Razoring (skipped when in check)
 	if PvNode = 0
 		cmp	esi, 2*ONE_PLY
 		jge	.6skip
-;		cmp	byte[rbx+State.improving], 0
-;		jne	.6skip
 		lea	edx, [r14+600]
 		cmp	edx, r12d
 		jg	.6skip
-;		mov	ecx, 590		; RazorMargin
 		xor	r8d, r8d
-;		cmp	esi, ONE_PLY
-;		cmovle	ecx, r8d
-;		mov	edi, r12d
-;		sub	edi, ecx
-;		mov	ecx, edi
 		mov	ecx, r12d
 		lea	edx, [rcx+1]
 		call	QSearch_NonPv_NoCheck
 		jmp	.Return
-;		cmp	eax, edi		; edi	= .ralpha
-;		jle	.Return
-;		cmp	esi, 2*ONE_PLY
-;		jl	.Return
 .6skip:
 	end if
-
-	    ; Step 7. Futility pruning:	child node (skipped when in check)
+		; Step 7. Futility pruning:	child node (skipped when in check)
 		cmp	esi, 7*ONE_PLY
 		jge	._7skip
 		cmp	r14d, VALUE_KNOWN_WIN
 		jge	._7skip
+;		test	r15l, JUMP_IMM_4
+;		jnz	._7skip
+;		mov	ecx, dword[rbp+Pos.sideToMove]
+;		cmp	word[rbx+State.npMaterial+2*rcx], 0
+;		je	._7skip
 		movzx	edx, byte[rbx+State.improving]
 		neg	edx
 		and	edx, 50
 		lea	edx, [rdx-175]
 		imul	edx, esi
-;		imul	edx, esi, -150	;original
 		mov	eax, r14d
 		add	edx, eax
 	if PvNode = 1
@@ -305,9 +283,11 @@ if RootNode =	0
 
 	    ; Step 8. Null move	search with verification search	(is omitted in PV nodes)
 	if PvNode = 0	; null & ProbCut
-		cmp	r12d, r14d	; r12d =.alpha, r14d =.evalu
+		cmp	r12d, r14d
 		jge	.8skip
-		cmp	dword[rbx-1*sizeof.State+State.history], 23200	;22500
+		test	r15l, JUMP_IMM_4
+		jnz	.8skip
+		cmp	dword[rbx-1*sizeof.State+State.history], 23200
 		jge	.8skip
 		mov	ecx, dword[rbp+Pos.sideToMove]
 		cmp	word[rbx+State.npMaterial+2*rcx], 0
@@ -342,20 +322,18 @@ if RootNode =	0
 if MATERIALDRAW = 1
 		jz	.9skipverify
 end if
-;pre test
 		xor	r8d, r8d
 		mov	ecx, edi
 		lea	edx, [rcx+1]
 		call	r14
 		cmp	eax, edi
 		jg	.9skipverify
-;done
 		mov	ecx, edi
 		lea	edx, [rcx+1]
 		lea	r8d, [rsi-4*ONE_PLY]
 		movzx	r9d, byte[.cutNode]
 		not	r9d
-	       call	Search_NonPv
+		call	Search_NonPv
 .9skipverify:
 		mov	r14d, eax
 	       call	Move_Undo
@@ -370,10 +348,9 @@ end if
 
 .IID_Search:
     ; Step 10. Internal iterative deepening (skipped when in check)
-
-		cmp	esi, 8*ONE_PLY		; 6*ONE_PLY
+		cmp	esi, 8*ONE_PLY
 		jl	.moves_loopex
-		cmp	word[.ltte+MainHashEntry.move], 0	; .ttMove
+		cmp	word[.ltte+MainHashEntry.move], 0
 		jne	.moves_loopex
 	if PvNode = 0
 		mov	eax, dword[rbx+State.staticEval]
@@ -381,16 +358,16 @@ end if
 		cmp	eax, r12d
 		jle	.moves_loopex
 		movzx	r9d, byte[.cutNode]
-		or	r15l, JUMP_IMM_3
-		mov	ecx, r12d		; .alpha
+		mov	r15l, JUMP_IMM_3 +JUMP_IMM_2
+		mov	ecx, r12d
 		lea	edx, [rcx+1]
 		lea	r8d, [3*rsi-8*ONE_PLY]
 		shr	r8d, 2
 		call	Search_NonPv
 	else
 		mov	edx, dword[.beta]
-		mov	ecx, r12d		; .alpha
-		mov	r15l, JUMP_IMM_3
+		mov	ecx, r12d
+		mov	r15l, JUMP_IMM_3+JUMP_IMM_2
 		lea	r8d, [3*rsi-8*ONE_PLY]
 		shr	r8d, 2
 		call	Search_Pv
@@ -400,16 +377,6 @@ end if	;RootNode =	0
 
 		calign 8
 .moves_loopex:
-
-if QUEENTHREAT = 100
-		mov	al,byte[rbx+State.flags]
-		test	al, JUMP_IMM_4
-		jnz	.QKBOXskip
-		or	al, JUMP_IMM_4
-		mov	byte[rbx+State.flags], al
-		call	InitQueenSee
-.QKBOXskip:
-end if
 
 .CMH  equ (rbx-1*sizeof.State+State.counterMoves)
 .FMH  equ (rbx-2*sizeof.State+State.counterMoves)
@@ -433,7 +400,6 @@ if RootNode =	0
 		 jz	.NoTTMove
 		mov	ecx, edi
 	       call	Move_IsPseudoLegal
-;	       test	rax, rax
 	      cmovz	edi, eax
 		 jz	.NoTTMove
 end if
@@ -489,24 +455,6 @@ end if
 		;Allready check excludemove, remove TTmove of line 162
 		cmp	esi, 8*ONE_PLY			; esi	=.depth
 	      setge	al
-if 0
-	if PvNode = 1
-		mov	ecx, VALUE_MATE_IN_ONE_PLY
-		cmp	ecx, dword[.beta]
-		setg	cl
-		and	al, cl
-	else
-		cmp	r12d, VALUE_MATE_IN_ONE_PLY
-		setl	cl
-		and	al, cl
-	end if
-
-		movsx	ecx, word[.ltte+MainHashEntry.value_]	; .ttValue
-		cmp	ecx, VALUE_MATE_IN_ONE_PLY
-		setl	cl
-		and	al, cl
-end if
-		
 		movsx	ecx, word[.ltte+MainHashEntry.genBound]	; genBound+depth
 	       test	cl, BOUND_LOWER
 	      setnz	cl
@@ -520,6 +468,11 @@ end if
 		mov	ecx, edi
 		call	Move_IsLegal
 		jz	.resetMovePick
+;		cmp	r12d, 0
+;		jge	.skipdetect
+;		call	detectRepetition
+;		jz	.cancelSingular
+;.skipdetect:
 		mov	dword[rbx+State.excludedMove], ecx
 		movsx	edx, word[.ltte+MainHashEntry.value_]	; .ttValue
 	if	PvNode = 0
@@ -528,8 +481,8 @@ end if
 		xor	r9, r9
 	end if
 		movzx	eax, byte[rbx+State.ply]
-		sub	eax, VALUE_MATE
-		;mov	eax, -VALUE_MATE
+		lea	eax, [rax-VALUE_MATE+1]
+;		mov	eax, -VALUE_MATE
 		sub	edx, esi			; esi = .depth
 		sub	edx, esi
 		cmp	edx, eax
@@ -544,6 +497,7 @@ end if
 		cmp	eax, r15d
 	       setl	ah
 
+	.cancelSingular:
 		or	al, -1
 		mov	word[.singularNode],	ax	; +.YesExtend
 		xor	eax, eax
@@ -551,53 +505,21 @@ end if
   end if
 ;=======================
   .skipsingular:
-
-if SUFFLEMOVE = 100 
-;& PvNode = 0
-  if RootNode = 0
-		xor	edx, edx
-		mov	dword[.sufflemove], edx
-		cmp	r12d, edx
-		jge	.skip_suff
-		cmp	byte[rbx+State.pliesFromNull], 2
-		jb	.skip_suff
-		cmp	byte[rbx+State.rule50], 2
-		jb	.skip_suff
-		mov	cl, byte[rbx-2*sizeof.State+State.castlingRights]
-		cmp	cl, byte[rbx+State.castlingRights]
-		setne	al		;yes differ Rights
-		or	dl, al
-		mov	r10d, dword[rbx-1*sizeof.State+State.currentMove]
-		mov	ecx, dword[rbx-2*sizeof.State+State.currentMove]
-		mov	r9d, ecx
-		and	r9d, 63 shl 6
-		shl	r9d, 3
-		and	ecx, 63
-		cmp	dh, byte[rbp+Pos.board+rcx]
-		setnz	al		;yes capture
-		or	dl, al
-		mov	r8, qword[BetweenBB+r9+8*rcx]
-		and	r10d, 63
-		bt	r8, r10		;yes there is piece
-		setc	al
-		or	dl, al
-		jnz	.skip_suff
-		shl	ecx, 6
-		shr	r9d, 6+3
-		or	ecx, r9d
-		mov	dword[.sufflemove], ecx
-.skip_suff:
-  end if
-end if
-;================================
+;=======================
 		; Init before search
 		; esi = .depth r14 = State.stage
-		mov	rax, 0x82FF000000000000	;(-VALUE_INFINITE ) shl 48	; .value_ = -VALUE_INFINITE + .move = 0
+		mov	rax, 0x82FF000000000000		; (-VALUE_INFINITE ) shl 48	; .value_ = -VALUE_INFINITE + .move = 0
 		mov	qword[.ltte], rax
 		mov	qword[rbx+State.ttMove], rdi	; .ttMove + .countermove
 		mov	qword[rbx+State.mpKillers], r13
 		mov	dword[rbx+State.moveCount], eax	; 0
 		mov	byte[rbx+State.skipQuiets], al
+  if PvNode = 1
+		; set &pv out from loop
+		lea	rdx, [.pv]
+		mov	qword[rbx+1*sizeof.State+State.pv], rdx
+		mov	dword[rdx], eax
+  end if
 		mov	rax, r14
 		jmp	.Pickcaller
 ;
@@ -627,9 +549,7 @@ end if
   end if
 		xor	eax, eax
   if PvNode = 1
-		lea	rdx, [.pv]
-		mov	qword[rbx+1*sizeof.State+State.pv], rdx
-		mov	dword[rdx], eax
+ 		mov	dword[.pv], eax
   end if
 
   if USE_CURRMOVE = 1 &	VERBOSE	< 2 & RootNode = 1
@@ -705,9 +625,9 @@ end if
 		add	eax, dword[.reductionOffset]
 		mov	r15d, dword[Reductions + 4*(rax	+ 2*64*64*PvNode)]	; r15d = .reduction
 
-  if (RootNode = 0 & USE_MATEFINDER = 0)
-cmp	esi,16*ONE_PLY	; .depth
-jge	.13done
+  if RootNode = 0
+		cmp	esi, 16*ONE_PLY	; .depth
+		jge	.13done
 		movsx	eax, word[.ltte+MainHashEntry.value_]
 		cmp	eax, VALUE_MATED_IN_MAX_PLY
 		jle	.13done
@@ -740,6 +660,9 @@ jge	.13done
 		or	byte[rbx+State.skipQuiets],al
 		jnz	.MovePickLoop
 		sub	edi, r15d		; edi = lmrDepth = .newDepth - .reduction
+;detectrepetition?
+;		call	detectRepetition
+;		jz	.MovePickLoop
 if 1
 		cmp	edi, 3*ONE_PLY
 		jge	.13DontSkip2
@@ -801,17 +724,9 @@ end if
   if RootNode = 0
 		call	Move_IsLegal
 		jz	.MovePickLoop	; .IllegalMove	;uses eax flags
-		add	dword[rbx+State.moveCount], 1
-	if SUFFLEMOVE = 100 
-		xor	edi, edi
-		cmp	ecx, dword[.sufflemove]
-		je	.MovePickLoop	; .testSuffling
-	end if
-  else
-		add	dword[rbx+State.moveCount], 1
   end if
+		add	dword[rbx+State.moveCount], 1
 
-    ; replacing prefetch on Move_Do
     ; Step 14. Make the move
 		call	Move_Do__Search
 		jz	.17entry	; uses flags
@@ -838,16 +753,11 @@ end if
 		jz	.15NotCaptureOrPromotion
 		test	r13d, 0xff000000	; .moveCountPruning = 0 ?
 		jz	.15skip
-if RootNode = 0
-		cmp	dword[rbx-2*sizeof.State+State.history], r15d
+		;Increase reduction by comparing opponent's stat score
+		cmp	r15d, dword[rbx-2*sizeof.State+State.history]
 		adc	rdi, r15
-end if
-		dec	edi	;sub	edi, 1
+		dec	edi
 		cmovs	edi, r15d
-;or
-;		lea	eax, [rdi-1]
-;		test	edi, edi
-;		cmovnz	edi, eax
 		jmp	.15ReadyToSearch
 
 .15NotCaptureOrPromotion:
@@ -1046,11 +956,6 @@ end if
 		mov	dword[rdx+RootMove.pvSize], r9d
 .FoundRootMoveDone:
 		mov	dword[rdx+RootMove.score], r10d
-  else
-	if SUFFLEMOVE >= 1
-.testSuffling:
-	end if
-
   end if
     ; check for new best move
 		cmp	di, word[.ltte+MainHashEntry.value_]
@@ -1101,7 +1006,7 @@ end if
 		inc	eax
 		mov	dword[.captureCount],	eax
 		jmp	.MovePickLoop
-	     calign   8		;addition arif
+	     calign   8
 .EndCycle:
     ; Step 20. Check for mate and stalemate
 		xor	edx, edx
@@ -1119,33 +1024,32 @@ end if
 		cmp	rdx, qword[rbx+State.checkersBB]
 		cmove	edi, edx
 		jmp	.20TTStoreSave
-	     calign   8		;addition arif
+	     calign   8
 .MovePickDone:
 	; fail high r15 = 0, eax = 0
 	; edi .bestValue
 	; ecx .bestMove
 	; r13d flags
+	; esi .depth
 ;		mov	eax, dword[rbx+State.history]
 ;		cmp	eax, r15d
 ;		cmovl	eax, r15d
 ;		mov	dword[rbx+State.history],eax
+;or
+;		mov	dword[rbx+State.history],r15d
 
 ;.MovePickDone1:
 		mov	r15d, dword[.success]
-		mov	eax, esi		; .depth harus esi
-		imul	eax, eax
-		lea	r10d, [rax+2*rsi-2]
-		xor	edx,edx
-		cmp	esi, 17
-		cmovg	r10d, edx
-		;29dd+138*d-134
     ; r15d = offset of [piece_on(prevSq),prevSq]
     ; ecx = move
     ; esi = depth
     ; r10d = bonus
 		test	ecx, ecx
 		jz	.20CheckBonus
-;.20Quiet:
+		mov	eax, esi
+		imul	eax, eax
+		lea	r10d, [rax+2*rsi-2]
+
 	if PvNode = 1
 		mov	eax, ecx
 		mov	edx, eax
@@ -1156,18 +1060,34 @@ end if
 		test	al, byte[_CaptureOrPromotion_and+rdx]
 	else
 		test	r13d, 0xff0000			; .captureOrPromotion = 0?
-;		cmp	byte[rbx+State.captureOrPromotion], 0
 	end if
 		jnz	.20Quiet_UpdateCaptureStats
-		UpdateStats	ecx, .quietsSearched, dword[.quietCount], r11d, r10d, r15
-		jmp	.20Quiet_UpdateStatsDone
+		Updatemove	ecx, r15
+		cmp	esi, 17
+		jg	.20TTStore
+;		lea	r15d, [r10+2*(rsi+1)+1]
+;	if PvNode = 1
+;		mov	eax,dword[.beta]
+;		add	eax,PawnValueMg
+;		cmp	edi,eax
+;	else
+;		lea	eax,[r12d+1+PawnValueMg]
+;		cmp	edi, eax
+;	end if
+;		cmovle	r15d, r10d
+		UpdateStats	ecx, .quietsSearched, dword[.quietCount], r11d, r10d	;r15d
+;		mov	r15d, dword[.success]
+		xor	ecx,ecx	;added
+;		jmp	.20Quiet_UpdateStatsDone
 .20Quiet_UpdateCaptureStats:
-		;added====================================================================
+		cmp	esi, 17
+		jg	.20TTStore
 		xor	eax, eax
 		cmp	rax, qword[rbx+State.checkersBB]
 		jne	.20Quiet_UpdateStatsDone
 		;
-		UpdateCaptureStats	ecx, .capturesSearched, dword[.captureCount],	r11d, r10d
+		lea	r14d, [r10+2*(rsi+1)+1]
+		UpdateCaptureStats	ecx, .capturesSearched, dword[.captureCount],	r11d, r14d
 .20Quiet_UpdateStatsDone:
 		cmp	dword[rbx-1*sizeof.State+State.moveCount], 1
 		jne	.20TTStore
@@ -1175,16 +1095,14 @@ end if
 		jne	.20TTStore
 		lea	r10d, [r10+2*(rsi+1)+1]
     ; r10d = penalty
-		cmp	r10d,	324
-		jae	.20TTStore
 		imul	r11d,	r10d, -32
 		jmp	.20TTBeforeStore
-	     calign   8		;addition arif
+	     calign   8
 .20CheckBonus:
-    ; we already checked that bestMove = 0
+    ; Bonus for prior countermove that caused the fail low
+		cmp	esi, 17
+		jg	.20TTStore
 	if PvNode = 0
-;		cmp	dword[rbx+State.excludedMove], ecx
-;		jne	.ReturnBestValue
 		mov	eax, dword[rbx-1*sizeof.State+State.currentMove]
 		dec	eax
 		lea	edx, [rsi-3*ONE_PLY]
@@ -1193,8 +1111,9 @@ end if
 	end if
 		cmp	byte[rbx+State.capturedPiece], cl	;0
 		jne	.20TTStore
-		cmp	r10d,	324
-		jae	.20TTStore
+		mov	eax, esi
+		imul	eax, eax
+		lea	r10d, [rax+2*rsi-2]
 		imul	r11d,	r10d, 32
 .20TTBeforeStore:
 		UpdateCmStats	(rbx-1*sizeof.State),	r15, r11d, r10d, r8
@@ -1216,8 +1135,7 @@ end if
   if PvNode = 0
 		xor	r10d, r10d
 		cmp	edi, r12d	;dword[.beta]
-		setg	r10l		;setge
-		;add	r10d, BOUND_UPPER
+		setg	r10l
 		inc	r10d
   else
 		mov	ecx, BOUND_LOWER
@@ -1228,7 +1146,8 @@ end if
 		cmovge	r10d, ecx
   end if
 	; sil = .depth
-	MainHash_Save   .ltte, r8, r9w, edx, r10l, sil, eax, word[rbx+State.staticEval]	
+	MainHash_Save   .ltte, r8, r9w, edx, r10l, sil, eax, word[rbx+State.staticEval]
+
 .ReturnBestValue:
 .Return_edi_Value:
 		mov	eax, edi
@@ -1254,13 +1173,13 @@ end if
 	 calign   8
 .ReturnTTValue:
 ; If ttMove is quiet, update move sorting heuristics on TT hit
-    ; edi = ttValue
+; edi = ttValue
+; esi = depth
 		test	ecx, ecx			; .ttmove
 		jz	.Return_edi_Value
 		mov	eax, esi			; .depth
 		imul	eax, eax
 		lea	r10d,	[rax+2*rsi-2]
-    ; esi = depth
     ; r10d = bonus
 		mov	eax, ecx
 		mov	edx, eax
@@ -1271,41 +1190,40 @@ end if
 		and	dl, byte[_CaptureOrPromotion_and+rax]
     ; dl = capture or promotion
     ; ttMove is	quiet; update move sorting heuristics on TT hit
-		cmp	edi, r12d			;dword[.beta]
-		jle	.ReturnTTValue_Penalty		;jl
+		cmp	edi, r12d
+		jle	.ReturnTTValue_Penalty
 		mov	eax, dword[rbx-1*sizeof.State+State.currentMove]
 		and	eax, 63
 		movzx	r15d, byte[rbp+Pos.board+rax]
 		shl	r15d, 6
 		add	r15d, eax
     ; r15d = offset of [piece_on(prevSq),prevSq]
-	       test	dl, dl
+		test	dl, dl
 		jnz	.ReturnTTValue_UpdateCaptureStats
-	UpdateStats	ecx,	0, 0, r11d, r10d, r15
-	;UpdateStats	r12d,	0, 0, r11d, r10d, r15
-;		jmp   .ReturnTTValue_UpdateStatsDone
+		Updatemove	ecx, r15
+		cmp	esi, 17
+		jg	.Return_edi_Value
+		UpdateStats	ecx,	0, 0, r11d, r10d
 .ReturnTTValue_UpdateCaptureStats:
 ;Extra penalty for a quiet TT move in previous ply when it gets refuted
-;UpdateCaptureStats   r12d, 0, 0, r11d,	r10d
-;.ReturnTTValue_UpdateStatsDone:
     ; r10d = penalty
+		cmp	esi, 17
+		jg	.Return_edi_Value
 		cmp	dword[rbx-1*sizeof.State+State.moveCount], 1
 		jne	.Return_edi_Value
 		cmp	byte[rbx+State.capturedPiece], 0
 		jne	.Return_edi_Value
 		lea	r10d,	[r10+2*(rsi+1)+1]
-		cmp	r10d,	324
-		jae	.Return_edi_Value
-		imul	r11d,	r10d, -32	;	       imul   bonus32, absbonus, 32
+		imul	r11d,	r10d, -32
 	UpdateCmStats	(rbx-1*sizeof.State),	r15, r11d, r10d, r8
 		jmp	.Return_edi_Value
-	     calign   8		;addition arif
+	     calign   8
 .ReturnTTValue_Penalty:
+		cmp	esi, 17
+		jg	.Return_edi_Value
 		test	dl, dl
 		jnz	.Return_edi_Value
     ; r8 = offset in history table
-		cmp	r10d,	324
-		jae	.Return_edi_Value
 		imul	r11d,	r10d, -32
 		;Penalty for a quiet ttMove that fails low
 		and	ecx, (64*64)-1

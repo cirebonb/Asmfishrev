@@ -24,13 +24,9 @@ over2:
 	apply_bonus   (t1+4*(offset)), bonus32, absbonus, 936
 over3:
 end macro
-
-
-macro UpdateStats move, quiets, quietsCnt, bonus32, absbonus, prevOffset
-	; clobbers rax, rcx, rdx, r8, r9
-	; it also might clobber rsi and change the sign of bonus32
-  local DontUpdateKillers, DontUpdateOpp, NextQuiet, Return, Continue
-
+;===============================
+macro Updatemove move, prevOffset
+  local DontUpdateKillers, DontUpdateOpp
 		xor	eax, eax
 		cmp	rax, qword[rbx+State.checkersBB]
 		jne	DontUpdateKillers
@@ -47,10 +43,13 @@ DontUpdateKillers:
 		mov	dword[rax+4*prevOffset], move
 DontUpdateOpp:
 
-		test	absbonus,absbonus
-		jz	Return
-		cmp	absbonus, 324
-		jae	Return		;BonusTooBig
+end macro
+;================================
+macro UpdateStats move, quiets, quietsCnt, bonus32, absbonus
+	; clobbers rax, rcx, rdx, r8, r9
+	; it also might clobber rsi and change the sign of bonus32
+  local NextQuiet, Return, Continue
+
 		imul	bonus32, absbonus, 32
 
 		mov	eax, move
@@ -106,21 +105,15 @@ end macro
 macro UpdateCaptureStats move, captures, captureCnt, bonusW, absbonus
 	; clobbers rax, rcx, rdx, r8, r9
 	; it also might clobber rsi
-  local Skipit, NextCapture, Return
+  local Skipit, NextCapture, Return, ItsQuiet
 
-		test	absbonus,absbonus
-		jz	Return
-		cmp	absbonus, 324
-		jae	Return		;BonusTooBig
-;           imul  bonusW, absbonus, 32		;2
 		lea	bonusW, [2*absbonus]
-;	    mov	bonusW, absbonus
-;	    shl	bonusW, 4
 		mov	r9, qword[rbp + Pos.captureHistory]
+		test	move,move
+		jz	ItsQuiet
 
 		mov	eax, move
 		and	eax, (64*64)-1
-;		jz	Skipit
 		mov	ecx, eax	;move
 		shr	ecx, 6
 		and	eax, 63
@@ -132,8 +125,7 @@ macro UpdateCaptureStats move, captures, captureCnt, bonusW, absbonus
 		lea	ecx,[rax+8*rcx]
 		lea	r8, [r9 + 4*rcx]
 		apply_bonus  r8, bonusW, absbonus, 324
-;Skipit:
-
+ItsQuiet:
   match =0, captures	;quiets
   else
 		mov	r13d, captureCnt

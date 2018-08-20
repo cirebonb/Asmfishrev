@@ -7,9 +7,6 @@ BitBoard_Init:
 	       call   Init_ForwardBB_PawnAttackSpan_PassedPawnMask
 	       call   Init_SquareDistance_DistanceRingBB
 	       call   Init_BetweenBB_LineBB
-if QUEENTHREAT = 1
-	       call	Init_EvadeKingBB	;new
-end if
 		pop   r15 r14 r13 r12 r11 rdi rsi rbx rbp
 		ret
 
@@ -215,169 +212,140 @@ Init_SquareDistance_DistanceRingBB:
 		cmp   r15d, 64
 		 jb   .Next1
 		ret
-
-
-if QUEENTHREAT = 1
-Init_EvadeKingBB:
-		xor	r8, r8
-		.loop_sq:
-		;  for (sq = A1; sq <= H8; sq++)
-		;r8 = index
-		xor	r9, r9
-		.loop_king:
-		;    for (king = A1; king <= H8; king++)
-		;     {
-		;r9 = index kingsq
-		mov	edx, r9d
-		shl	edx, 6
-		add	edx, r8d
-		lea	rsi, [Evade+8*rdx]
-			;Evade (king, sq) = AttK[king];
-		mov	rax, qword[KingAttacks+8*r9]
-		mov	qword[rsi],rax
-
-		mov	rax, r9
-		and	eax, 56
-		mov	rcx, r8
-		and	ecx, 56
-		mov	rdx, rax
-		sub	rdx, rcx
-		sar	rdx, 3
-		cmp	eax, ecx
-		jne	.Rank_differ
-		;	if (RANK (king) == RANK (sq))
-		;	  {
-		mov	eax, r9d
-		and	eax, 7
-		cmp	eax, FILE_A
-		je	.Not_File_A
-			    ;if (FILE (king) != FA)
-		mov	eax, r9d
-		sub	eax, 1
-		btr	qword[rsi], rax
-			      ;Evade (king, sq) ^= 1<<(king - 1);
-		.Not_File_A:
-		mov	eax, r9d
-		and	eax, 7
-		cmp	eax, FILE_H
-		je	.Rank_differ
-		;	    if (FILE (king) != FH)
-		mov	eax, r9d
-		add	eax, 1
-		btr	qword[rsi], rax
-			      ;Evade (king, sq) ^= SqSet[king + 1];
-		;	  }
-		.Rank_differ:
-		mov	rax, r9
-		and	rax, 7
-		mov	rcx, r8
-		and	rcx, 7
-		mov	rdi, rax
-		sub	rdi, rcx
-		cmp	eax, ecx
-		jne	.File_differ
-		;	if (FILE (king) == FILE (sq))
-		;	  {
-		mov	eax, r9d
-		and	eax, 56
-		cmp	eax, RANK_1 shl 3
-		je	.Not_Rank_1
-		;	    if (RANK (king) != R1)
-		mov	eax, r9d
-		sub	eax, 8
-		btr	qword[rsi], rax
-		;	      Evade (king, sq) ^= SqSet[king - 8];
-		.Not_Rank_1:
-		mov	eax, r9d
-		and	eax, 56
-		cmp	eax, RANK_8 shl 3
-		je	.File_differ
-		;	    if (RANK (king) != R8)
-		mov	eax, r9d
-		add	eax, 8
-		btr	qword[rsi], rax
-		;	      Evade (king, sq) ^= SqSet[king + 8];
-		;	  }
-		.File_differ:
-		cmp	rdx, rdi
-		jne	.diag_differ
-		;	if ((RANK (king) - RANK (sq)) == (FILE (king) - FILE (sq)))
-		;	  {
-		mov	rax, r9
-		and	eax, 56
-		cmp	eax, RANK_8 shl 3
-		je	.diag_diff_0
-		mov	rcx, r9
-		and	rcx, 7
-		cmp	ecx, FILE_H
-		je	.diag_diff_0
-		;	    if (RANK (king) != R8 && FILE (king) != FH)
-		mov	eax, r9d
-		add	eax, 9
-		btr	qword[rsi], rax
-		;	      Evade (king, sq) ^= SqSet[king + 9];
-		.diag_diff_0:
-		mov	rax, r9
-		and	eax, 56
-		cmp	eax, RANK_1 shl 3
-		je	.diag_differ
-		mov	rcx, r9
-		and	rcx, 7
-		cmp	ecx, FILE_A
-		je	.diag_differ
-		;	    if (RANK (king) != R1 && FILE (king) != FA)
-		mov	eax, r9d
-		sub	eax, 9
-		btr	qword[rsi], rax
-		;	      Evade (king, sq) ^= SqSet[king - 9];
-		;	  }
-		.diag_differ:
-		neg	rdi
-		cmp	rdx, rdi
-		jne	.diag_differ2
-		;	if ((RANK (king) - RANK (sq)) == (FILE (sq) - FILE (king)))
-		;	  {
-		mov	rax, r9
-		and	eax, 56
-		cmp	eax, RANK_8 shl 3
-		je	.diag_diff2_0
-		mov	rcx, r9
-		and	rcx, 7
-		cmp	ecx, FILE_A
-		je	.diag_diff2_0
-		;	    if (RANK (king) != R8 && FILE (king) != FA)
-		mov	eax, r9d
-		add	eax, 7
-		btr	qword[rsi], rax
-		;	      Evade (king, sq) ^= SqSet[king + 7];
-		.diag_diff2_0:
-		mov	rax, r9
-		and	eax, 56
-		cmp	eax, RANK_1 shl 3
-		je	.diag_differ2
-		mov	rcx, r9
-		and	rcx, 7
-		cmp	ecx, FILE_H
-		je	.diag_differ2
-		;	    if (RANK (king) != R1 && FILE (king) != FH)
-		mov	eax, r9d
-		sub	eax, 7
-		btr	qword[rsi], rax
-		;	      Evade (king, sq) ^= SqSet[king - 7];
-		;	  }
-		.diag_differ2:
-		bt qword[KingAttacks+8*r9], r8
-		jnc	.loop_it	
-		;	if (AttK[king] & SqSet[sq])
-		bts	qword[rsi], r8
-		;	  Evade (king, sq) |= SqSet[sq];
-		;      }
-		.loop_it:
-		add	r9, 1
-		cmp	r9, 63
-		jbe	.loop_king
-		add	r8, 1
-		cmp	r8, 63
-		jbe	.loop_sq
+if USE_GAMECYCLE = 1
+;  // Prepare the cuckoo tables
+;  int count = 0;
+;  for (int c = 0; c < 2; c++)
+;    for (int pt = PAWN; pt <= KING; pt++) {
+;      int pc = make_piece(c, pt);
+;      for (Square s1 = 0; s1 < 64; s1++)
+;        for (Square s2 = s1 + 1; s2 < 64; s2++)
+;          if (PseudoAttacks[pt][s1] & sq_bb(s2)) {
+;            Move move = between_bb(s1, s2) ? make_move(s1, s2)
+;                                           : make_move(SQ_C3, SQ_D5);
+;            Key key = zob.psq[pc][s1] ^ zob.psq[pc][s2] ^ zob.side;
+;            uint32_t i = H1(key);
+;            while (1) {
+;              Key tmpKey = cuckoo[i];
+;              cuckoo[i] = key;
+;              key = tmpKey;
+;              Move tmpMove = cuckooMove[i];
+;              cuckooMove[i] = move;
+;              move = tmpMove;
+;              if (!move) break;
+;              i = (i == H1(key)) ? H2(key) : H1(key);
+;            }
+;            count++;
+;          }
+;    }
+Init_cuckoo:
+		xor	r8, r8	;colour
+	.loop_c:
+;  for (int c = 0; c < 2; c++)
+		mov	r9, Pawn	;pt
+	.loop_pt:
+;    for (int pt = PAWN; pt <= KING; pt++) {
+		lea	r12,[r9+r8*8]	;piece
+		
+		xor	r10, r10	;sq1
+;      for (Square s1 = 0; s1 < 64; s1++)
+	.loop_sq1:
+		lea	r11, [r10+1]	;sq2
+;        for (Square s2 = s1 + 1; s2 < 64; s2++)
+	.loop_sq2:
+		cmp	r9,King
+		jne	.notKing
+		bt	qword[KingAttacks+8*r10],r11
+		jc	.yescuckoo
+		jmp	.notcuckoo
+	.notKing:
+		cmp	r9,Knight
+		jne	.notKnight
+		bt	qword[KnightAttacks+8*r10],r11
+		jc	.yescuckoo
+		jmp	.notcuckoo
+	.notKnight:
+		cmp	r9,Bishop
+		jne	.notBishop
+		bt	qword[BishopAttacksPDEP+8*r10],r11
+		jc	.yescuckoo
+		jmp	.notcuckoo
+	.notBishop:
+		cmp	r9,Rook
+		jne	.notRook
+		bt	qword[RookAttacksPDEP+8*r10],r11
+		jc	.yescuckoo
+		jmp	.notcuckoo
+	.notRook:
+		cmp	r9,Queen
+		jne	.notcuckoo
+		bt	qword[BishopAttacksPDEP+8*r10],r11
+		jc	.yescuckoo
+		bt	qword[RookAttacksPDEP+8*r10],r11
+		jnc	.notcuckoo
+	.yescuckoo:
+;            Move move = between_bb(s1, s2) ? make_move(s1, s2)
+;                                           : make_move(SQ_C3, SQ_D5);
+		mov	rcx,r10
+		shl	ecx,6
+		or	ecx,r11d
+		mov	rax, (SQ_C3 shl 6)
+		or	rax, (SQ_D5)
+		cmp	r9,Knight
+		cmovne	rax,rcx	;rax = move
+		
+;            Key key = zob.psq[pc][s1] ^ zob.psq[pc][s2] ^ zob.side;
+		mov	rcx,r12
+		shl	rcx,6+3
+		mov	rdx, qword[Zobrist_Pieces+rcx+8*r10]
+		xor	rdx, qword[Zobrist_Pieces+rcx+8*r11]
+		xor	rdx, qword[Zobrist_side]	;Key
+		mov	rcx, rdx
+		and	rcx, 0x1fff	;i
+		mov	rdi,rcx		;H1
+;            uint32_t i = H1(key);
+	.loopcuckoo:
+;            while (1) {
+;              Key tmpKey = cuckoo[i];
+		mov	rsi, qword[cuckoo+rcx*8]	;tmpKey
+;              cuckoo[i] = key;
+		mov	qword[cuckoo+rcx*8], rdx
+;              key = tmpKey;
+		mov	rdx, rsi
+;              Move tmpMove = cuckooMove[i];
+		movzx	rsi, word[cuckooMove+rcx*2]
+;              cuckooMove[i] = move;
+		mov	word[cuckooMove+rcx*2], ax
+;              move = tmpMove;
+		mov	rax, rsi
+;              if (!move) break;
+		test	rax,rax
+		jz	.notcuckoo
+;              i = (i == H1(key)) ? H2(key) : H1(key);
+		mov	rsi, rdx
+		shr	rsi, 16
+		and	rsi, 0x1fff	;H2
+		mov	rdi, rdx
+		and	rdi, 0x1fff	;H1
+		cmp	rcx, rdi
+		cmove	rcx, rsi
+		cmovne	rcx, rdi 
+		jmp	.loopcuckoo
+;            }
+	.notcuckoo:
+;loop
+;
+		inc	r11
+		cmp	r11,64
+		jb	.loop_sq2
+		inc	r10
+		cmp	r10,64
+		jb	.loop_sq1
+		inc	r9
+		cmp	r9,King
+		jbe	.loop_pt
+		inc	r8
+		cmp	r8,2
+		jb	.loop_c
 		ret
 end if

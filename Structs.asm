@@ -182,9 +182,6 @@ struct State
 	Occupied	rq	1
 	tte		rq	1
 	ltte		rq	1
-if QUEENTHREAT = 100
-	QKBOX		rq	1
-end if
 ; CheckInfo struct
 	checkersBB		rq 1	; this is actually not part of checkinfo
 	dcCandidates		rq 1

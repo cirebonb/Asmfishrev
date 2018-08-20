@@ -49,17 +49,6 @@ QxR		equ r11
 		cmp	swap, res
 		jl	.ReturnOnly0	; 13.63%	kingmoves filtered
 
-if QUEENTHREAT = 100
-	;not implemented yet
-		mov	r10d, stm_d
-		and	r10d, 7
-		cmp	r10d, Queen
-		je	.continue0
-		mov	r10, qword[rbx+State.QKBOX]
-		test	r10, r10
-		jnz	.TestQueenTreat
-.continue0:
-end if
 		push	r12 r13 r14 r15 rdi		;r13 r14 r15 rsi rdi r8 & r9 stand pat
 ;.EpCaptureRet:
 		and	stm_d, 8
@@ -249,15 +238,6 @@ and	r13,bb
 		cmp	swap, 0x80000000
 		adc	res, res
 		ret
-if QUEENTHREAT = 100
-         calign  8
-.TestQueenTreat:
-	;not implemented yet
-		mov	r10, qword[rbx+State.QKBOX]
-		test	r10, r10
-		jmp	.continue0
-end if
-
 
 restore from
 restore to
@@ -273,39 +253,3 @@ restore res
 restore QxB
 restore QxR
 
-if QUEENTHREAT = 100
-		calign  16
-InitQueenSee:
-		lea	r11, [rbp+Pos.pieceList+16*(8*0+Queen)]
-		lea	r10, [rbp+Pos.pieceList+16*(8*1+Queen)]
-		cmp	byte[rbp+Pos.sideToMove], 0
-		cmovne	r11, r10 
-		movzx	edx, byte[r11]
-		cmp	edx, 64
-		jae	.OuterDone
-		mov	r14, qword[rbx+State.Occupied]
-		movzx	edx, byte[rbx+State.ksq]
-		mov	rax, qword[KingAttacks+8*rdx]
-		and	rax, qword[rbx+State.checkSq+8*Queen]
-		;rax non zero
-		xor	ecx,ecx
-.Outer:
-		mov	r10, qword[BishopAttacksPDEP+8*rdx]
-		or	r10, qword[RookAttacksPDEP+8*rdx]
-		and	r10, rax
-		jz	.InnerDone
-		bsf	r8, r10
-		jz	skip_testQueen
-		_blsr   r10, r10, r9
-		QueenAttacks	rdx, r8, r14, r15, r12
-		and	rdx, rax
-		or	rcx, rdx
-.InnerDone:
-		add	r11, 1
-		movzx	edx, byte[r11]
-		cmp	edx, 64
-		jb	Outer
-		mov	qword[rbx+State.QKBOX], rcx
-.OuterDone:
-		ret
-end if

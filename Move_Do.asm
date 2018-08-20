@@ -522,7 +522,7 @@ TPDCheckDraw_ColdRet:
 		cmp	dl, 4
 		jb	TPDReturn		; carry flag = 1
 		movzx	edx, dl
-		shr	eax, 8			; State.ply
+		movzx	eax, ah
 		xor	edi, edi
 		mov	r11, qword[rbx+State.key]
 		imul	r10, rdx, -sizeof.State	; r10 = end
@@ -542,7 +542,7 @@ TPDKeysDontMatch:
 		sub	r12, 2*sizeof.State
 		sub	eax, 2
 		cmp	r12, r10
-		jae	TPDCheckNext
+		jge	TPDCheckNext
 		;carry flag = 1
 		test	rdi, rdi
 		jnz	copy_static
@@ -588,9 +588,12 @@ copy_static:
 ;		jne	TPDReturn
 		mov	rax, qword[rbx+rdi+State.tte]
 		mov	qword[rbx+State.tte], rax
+		mov	rax, qword[rbx+rdi+State.ltte]
+		mov	qword[rbx+State.ltte], rax
 		mov	edx, dword[rbx+rdi+State.staticEval]
 		mov	al, byte[rbx+rdi+State.flags]
 		and	al, JUMP_IMM_2+JUMP_IMM_3
+;		or	al,JUMP_IMM_5
 		mov	dword[rbx+State.staticEval], edx
 		mov	byte[rbx+State.flags], al
 		jmp	TPDReturn

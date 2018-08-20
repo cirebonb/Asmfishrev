@@ -78,9 +78,8 @@ MainHash_Probe:
 		mov	rcx, 0x7D027D0200000000
 		xor	edx, edx
 		mov	qword[rbx+State.tte], rax
+		mov	qword[rbx+State.ltte], rcx
 		ret
-
-
 	     calign   8
 .FoundRefresh:
 		mov	rcx, qword[rax]
@@ -88,6 +87,7 @@ MainHash_Probe:
 		or	rcx, r11
 		mov	byte[rax+MainHashEntry.genBound], cl
 		mov	qword[rbx+State.tte], rax
+		mov	qword[rbx+State.ltte], rcx
 		or	r15l, JUMP_IMM_6
 		or	edx, -1
 		ret
@@ -102,57 +102,13 @@ MainHash_Probe:
 		cmp	cx, word[rbx+State.key+6]
 		jne	.ValueNone
 		mov	rcx, qword[rax]
+		mov	qword[rbx+State.ltte], rcx
 		or	r15l, JUMP_IMM_6
 		or	edx,-1
 		ret
 	     calign   8
 .ValueNone:
-		mov	rcx, 0x7D027D0200000000
+		mov	rcx, qword[rbx+State.ltte]
+;		mov	rcx, 0x7D027D0200000000		; opps !, collission found
 		xor	edx, edx
 		ret
-;========================
-if 0
-	     calign   16
-; in rdi = .ltte
-MainHash_ProbeTakeIfFound:
-		mov	rax, qword[rbx+State.tte]
-		mov	rcx, rax
-		shr	ecx, 3  -  1
-		and	ecx, 3 shl 1
-		neg	rcx
-		lea	rcx, [8*3+3*rcx]
-		movzx	ecx, word[rcx+rax]
-		cmp	cx, word[rbx+State.key+6]
-		jne	.NoResult
-		mov	rcx, qword[rax]
-		test	ecx,0xffff0000			; .ttMove
-		jz	.NoResult
-		mov	rax, rcx
-		sar	rcx, 48
-		cmp	ecx, VALUE_NONE
-		je	.NoResult
-		lea	r8d, [rcx+VALUE_MATE_IN_MAX_PLY]
-		cmp	r8d, 2*VALUE_MATE_IN_MAX_PLY
-		jae	.ValueToTT
-		mov	qword[rbx+State.ltte], rax				;[.ltte]
-		or	edx, -1
-		ret
-	     calign   8
-.ValueToTT:
-		movzx	r8d, byte[rbx+State.ply]
-		mov	edx, ecx
-		sar	edx, 31
-		xor	r8d, edx
-		add	ecx, edx
-		sub	ecx, r8d
-		mov	qword[rbx+State.ltte], rax				;[.ltte]
-		mov	word[rbx+State.ltte+MainHashEntry.value_], cx
-		or	edx, -1
-		ret
-	     calign   8
-.NoResult:
-		xor	edx, edx
-		xor	eax, eax
-		ret
-
-end if
