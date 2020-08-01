@@ -10,19 +10,27 @@ local YesPinners, NoPinners, MoreThanOne
 ;	     Assert   e, result, 0, 'Assertion result=0 failed in slider_blockers'
 ;	     Assert   e, pinners, 0, 'Assertion pinners=0 failed in slider_blockers'
 
+		xor	result, result
 		mov	snipers, qword[rbx+State.checkSq]	; QxR
 		mov	b, qword[rbx+State.checkSq+8]		; QxB
 		and   snipers, qword[RookAttacksPDEP+8*s]
 		and   b, qword[BishopAttacksPDEP+8*s]
 		 or   snipers, b
-		shl   s#d, 6+3
-		lea   s, [BetweenBB+s]
+
 		and   snipers, sliders
 		 jz   NoPinners
+		shl   s#d, 6+3
+		lea   s, [BetweenBB+s]
+mov	pieces, snipers
+not	pieces
+and	pieces, qword[rbx+State.Occupied]
 YesPinners:
              _tzcnt   t, snipers
 		mov   b, pieces
 		and   b, qword[s+8*t]
+	if	1
+		jz	MoreThanOne
+	end if
 		lea   t, [b-1]
 	       test   t, b
 		jnz   MoreThanOne
@@ -53,6 +61,8 @@ local YesPinners, NoPinners, MoreThanOne
 ;blsr		lea   t, [a-1]
 ;		and   a, t
 
+		xor	result, result
+
 		mov   snipers, qword[rbp+Pos.typeBB+8*Queen]
 		mov   b, snipers
 		 or   snipers, qword[rbp+Pos.typeBB+8*Rook]
@@ -62,14 +72,20 @@ local YesPinners, NoPinners, MoreThanOne
 		and   snipers, qword[RookAttacksPDEP+8*s]
 		and   b, qword[BishopAttacksPDEP+8*s]
 		 or   snipers, b
-		shl   s#d, 6+3
-		lea   s, [BetweenBB+s]
 		and   snipers, sliders
 		 jz   NoPinners
+		shl   s#d, 6+3
+		lea   s, [BetweenBB+s]
+mov	b,snipers
+not	b
+and	pieces, b
 YesPinners:
              _tzcnt   t, snipers
 		mov   b, pieces
 		and   b, qword[s+8*t]
+	if	1
+		jz	MoreThanOne
+	end if
 		lea   t, [b-1]
 	       test   t, b
 		jnz   MoreThanOne

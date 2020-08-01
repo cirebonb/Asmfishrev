@@ -25,7 +25,6 @@ Move_IsPseudoLegal:
 		and	r9d, 63
 
 ;ProfileInc moveUnpack
-
 	; eax = FROM PIECE
 		movzx	eax, byte[rbp+Pos.board+r8]
 		mov	esi, dword[rbp+Pos.sideToMove]
@@ -280,10 +279,10 @@ Move_IsPseudoLegal:
 		jnc   @f
 
 		xor   esi, 1
-		shl   r8d, 6+3
+		imul	edx, r8d, 1 shl 9
 		mov   rax, qword[rbp+Pos.typeBB+8*King]
 		and   rax, qword[rbp+Pos.typeBB+8*rsi]
-		and   rax, qword[LineBB+r8+8*r9]
+		and   rax, qword[LineBB+rdx+8*r9]
 		pop   r15 r14 r13 r12 rdi rsi
 		ret	;flagok
 @@:

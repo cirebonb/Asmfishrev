@@ -17,7 +17,7 @@ end virtual
             xor  r14, r14
            call  Os_GetTime
             mov  qword[.time], rax
-           call  SetCheckInfo
+;removed           call  SetCheckInfo
             lea  rdi, [.movelist]
             mov  rsi, rdi
            call  Gen_Legal

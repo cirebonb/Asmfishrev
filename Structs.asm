@@ -23,6 +23,13 @@ struct MainHashEntry	; 8 bytes
  value_	   rw 1  ; this order is fixed
 ends
 
+struct MaterialEntryEx	; 8 bytes
+	scalingFunction		rb 2   ; these are 1 byte endgame structures
+	evaluationFunction	rb 1   ; they store the EndgameEntry.entry member
+	gamePhase		rb 1
+	factor			rb 2
+	value			rw 1
+ends
 
 struct MaterialEntry	; 16 bytes
  key		    rq 1
@@ -38,6 +45,7 @@ struct PawnEntry	; 80 bytes
  passedPawns	 rq 2
  pawnAttacks	 rq 2
  pawnAttacksSpan rq 2
+ doubleAttacks	rq 2
  key		rq 1
  kingSafety	rd 2
  score		rd 1
@@ -65,31 +73,27 @@ ends
 struct CounterMoveHistoryStats
  rd 16*64*16*64
 ends
-
+;there is gap between offset 0 to (piece*64+to)<<12 = (64*1+0)<<12=262144 is enough for MoveStats??
+struct MateDrawHashSize
+	rq 65536
+ends
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ; evaluation structures
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ; this struct sits on the stack for the whole duration of evaluation
 struct EvalInfo
- attackedBy   rq 16
+ attackedBy   rq 16	;rq[0], rq[1], rq[2], rq[7] , rq[8], rq[9]   used!
  attackedBy2  rq 2
- pinnedPieces rq 2
  mobilityArea rq 2
  kingRing     rq 2
  kingAttackersCount  rd 2
  kingAttackersWeight rd 2
  kingAdjacentZoneAttacksCount rd 2
  score	   rd 1
-	   rd 1
+tropism	   rd 1
  me   rq 1
  pi   rq 1
-ends
-
-struct EndgameMapEntry
- key	rq 1
- entri	rb 1
-	rb 7 ; assumed to be zeros
 ends
 
 ;;;;;;;;;;;;;;;;;;;;
@@ -100,9 +104,6 @@ struct ExtMove	 ; holds moves for gen/pick
  move	rd 1
  value	rd 1
 ends
-;if sizeof.ExtMove <> 8
-; err
-;end if
 
 struct RootMovesVec
  table	rq 1
@@ -113,7 +114,9 @@ struct RootMove
  prevScore rd 1 ; this order is used in PrintUciInfo
  score	   rd 1 ;
  pvSize    rd 1
- selDepth  rd 1
+ selDepth  rb 1
+	everPv	rb 1
+		rb 2
  pv	   rd MAX_PLY
 ends
 
@@ -131,7 +134,7 @@ struct Pos
  pieceList   rb 16*16		; pieceList[Piece p][16] is a SQ_NONE-terminated array of squares for piece p
 
  sideToMove  rd 1
-	     rd 1
+ 	     rd 1
  gamePly     rd 1
  chess960    rd 1
  _copy_size rb 0
@@ -143,8 +146,12 @@ end if
  state		rq 1 ; the current state struct
  stateTable	rq 1 ; the beginning of the vector of State structs
  stateEnd	rq 1 ; the end of
- counterMoveHistory  rq 1	 ; these structs hold addresses
- history 	rq 1		 ; of tables used by the search
+ counterMoveHistory  rq 1	 ; these structs hold addresses of tables used by the search
+if	0
+ history 	rq 1
+else
+ history 	rq 2
+end if
  counterMoves	rq 1		 ;
  captureHistory rq 1
  materialTable	rq 1		 ;
@@ -162,57 +169,67 @@ struct State
 ; State struct
 	key		rq 1
 	pawnKey		rq 1
-	materialKey	rq 1
 	psq		rw 2
 	npMaterial	rw 2
+	materialIdx	rd 1
+	
 	rule50		rb 1	; 1. these should be together
 	pliesFromNull	rb 1	; 2.
 	ply		rb 1	; 3.
-			rb 1	; 4. do not used
+			rb 1	; 4. leave it!
+	onerep		rb 1
+	ttcap		rb 1
+	singularNode	rb 1
+	pvhit		rb 1	; 8.  do not used - leave it!
+	
 	epSquare	rb 1
 	castlingRights	rb 1
 	capturedPiece	rb 1
 	ksq		rb 1
 ;
 	ourKsq		rb	1
-	flags		rb	1	;dont change .1
+	bound6		rb	1	;dont change .1
 	improving	rb	1	;dont change .2
-	skipQuiets	rb	1
-	staticEval	rd	1
+	depthpruned	rb	1
+	movelead1	rw	1	;stalemate
+	movelead0	rw	1	;move lead to repetition
 	Occupied	rq	1
 	tte		rq	1
 	ltte		rq	1
+
 ; CheckInfo struct
-	checkersBB		rq 1	; this is actually not part of checkinfo
+	checkersBB		rq 1
 	dcCandidates		rq 1
 	pinned			rq 1
-	checkSq			rq 8	; QxR = checkSq[0] QxB = checkSq[8]
+	checkSq			rq 8	; QxR = checkSq[0] QxB = checkSq[1]
 	blockersForKing		rq 2
 	pinnersForKing		rq 2
+	pv			rq 1
 ; Stack struct
 _stack_start rb 0
-	pv			rq 1
 	counterMoves		rq 1
-	killers			rd 2	
+	killers			rd 2
 	currentMove		rd 1	;dont_change struct .1
 	excludedMove		rd 1	;dont_change struct .2
-	moveCount		rd 1	;dont_change struct .1
-	history			rd 1	;dont_change struct .2
 _stack_end rb 0
+	moveCount	rb 1	;dont_change struct .1	;change on 4/3/2019 from dword to byte
+	quietCount	rb 1
+	captureCount	rb 1
+	pruned		rb 1
+	history		rd 1	;dont_change struct .2
 ; move picker data
-_movepick_start rb 0
 	cur			rq 1
 	endMoves		rq 1
 	endBadCaptures		rq 1	;can as .rbeta+.threshold / .depthQs +.recaptureSquare
 	stage			rq 1
 	ttMove			rd 1	;dont_change struct .1
-	countermove		rd 1	;dont_change struct .2
+	countermove		rd 1	;dont_change struct .2	-->splited .countermove +.index
 	givesCheck		rb 1	;dont_change struct .1
 	captureOrPromotion	rb 1	;dont_change struct .2
 	moveCountPruning	rb 2	;dont_change struct .3
-			rd 1
+	bestvalue	rw 1
+	bestmove	rw 1
 	mpKillers		rd 2
-_movepick_end rb 0
 ends
 
 ;if (sizeof.State and 15)
@@ -287,15 +304,6 @@ struct Weakness
  enabled      rb 1
 	      rb 3
 ends
-
-
-struct EasyMoveMng
- expectedPosKey rq 1
- pv		rd 4
- stableCnt	rd 1
-		rd 3
-ends
-
 
 struct Signals
  stop		 rb 1
@@ -378,10 +386,6 @@ struct Thread
  numaNode	 rq 1
  bestMoveChanges rq 1
  previousTimeReduction rq 1
-		nmp_ply		rb 2
-			rb 2
-			rd 1
-            ;nmp_ply     rq 1	;0 & 1
  PVIdx		 rd 1
  previousScore	 rd 1
  completedDepth  rd 1
@@ -390,18 +394,16 @@ struct Thread
  extra		 rd 1
  searching	  rb 1
  exit		  rb 1
- failedLow	  rb 1
+			rb 1	;failedLow	  rb 1
 			rb 1
 			rw 1		;dont change 1
-	selDepth	rb 1		;dont change2
-	afternull	rb 1	;extend next
+			rb 1		;dont change 2
+			rb 1		;
  nodes		rq 1
  tbHits 	rq 1
-if USE_VARIETY = 1
- randSeed     rq 2
-end if
- idx		rd 1
- rootDepth	rd 1
+	idx		rd 1
+	nmp_ply		rb 2
+	selDepth	rb 2
 
  castling_start rb 0
  castling_rfrom      rb 4
@@ -417,8 +419,11 @@ end if
  rootPos	 Pos
 ends
 
-if Thread.rootPos and 15
- err
+if 0	;sizeof.Pos and 15
+ err	'Pos tidak genap'
+end if
+if 0	;sizeof.Thread and 15
+ err	'Thread tidak genap'
 end if
 
 

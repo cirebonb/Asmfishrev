@@ -3,8 +3,8 @@ Position_SetState:
 	; in:  rbp  address of Pos
 	; set information in state struct
 
-	       push   rbx rsi rdi r12 r13 r14 r15
-		sub   rsp, 64
+		push	rsi rdi r12 r13 r14 r15
+;		sub   rsp, 64
 		mov   rbx, qword[rbp+Pos.state]
 
 		mov   rax, qword[Zobrist_side]
@@ -24,7 +24,7 @@ Position_SetState:
 		xor   r13, r13
 
 	     _vpxor   xmm0, xmm0, xmm0	; npMaterial
-	   _vmovdqa   dqword[rsp], xmm0
+;	   _vmovdqa   dqword[rsp], xmm0
 
 		xor   esi, esi
 .NextSquare:
@@ -37,42 +37,48 @@ Position_SetState:
 	     _vmovq   xmm1, qword[Scores_Pieces+rcx+8*rsi]
 	    _vpaddd   xmm0, xmm0, xmm1
 
-		xor   r15, qword[Zobrist_Pieces+rcx+8*rsi]
-		cmp   edx, Pawn
-		jne   @f
-		xor   r14, qword[Zobrist_Pieces+rcx+8*rsi]
+		add	r13d, dword[TableMaterialM+rcx+8*rsi]
+		xor	r15, qword[Zobrist_Pieces+rcx+8*rsi]
+		cmp	edx, Pawn
+		jne	@f
+		xor	r14, qword[Zobrist_Pieces+rcx+8*rsi]
 	 @@:
-	      movzx   edx, byte [rsp+rax]
-		xor   r13, qword[Zobrist_Pieces+rcx+8*rdx]
-		add   edx, 1
-		mov   byte [rsp+rax], dl
 .Empty:
-		add   esi, 1
+		inc	esi
 		cmp   esi, 64
 		 jb   .NextSquare
 
 		mov   qword[rbx+State.key], r15
 		mov   qword[rbx+State.pawnKey], r14
-		mov   qword[rbx+State.materialKey], r13
+		mov	dword[rbx+State.materialIdx], r13d
 	     _vmovq   qword[rbx+State.psq], xmm0
+		Display 2, "info string info::material::idx %i13%n"
 
-		mov   ecx, dword [rbp+Pos.sideToMove]
-		mov   rdx, qword [rbp+Pos.typeBB+8*King]
-		and   rdx, qword [rbp+Pos.typeBB+8*rcx]
-		bsf   rdx, rdx
-	       call   AttackersTo_Side
-		mov   qword[rbx+State.checkersBB], rax
-
-	       call   SetCheckInfo
-
-		add   rsp, 64
-		pop   r15 r14 r13 r12 rdi rsi rbx
-		ret
+;		jmp	CheckDoFull
+;		call	CheckDoFull	;set check condition and other info
+;		pop   r15 r14 r13 r12 rdi rsi rbx
+;		ret
+;		calign   16
+;CheckDoFull:
+		mov	esi, dword[rbp+Pos.sideToMove]
+		mov	r15, qword[rbp+Pos.typeBB+8*rsi]
+		xor	esi, 1
+		mov	r12, qword[rbp+Pos.typeBB+8*rsi]	; r12 = their pieces
+		mov	r14, qword[rbp+Pos.typeBB+8*King]
+		shl	esi, 6+3		; used on .DoFull & .SetCheckInfo_go
+		mov	r13, r15		; r13 = our pieces
+		lea	rdi, [r12+r13]		; rdi = all pieces
+		and	r15, r14
+		xor	r14, r15
+             _tzcnt	r15, r15	        ; r15 = our king
+             _tzcnt	r14, r14	        ; r14 = their king
+	       jmp	Move_Do0.DoFull
 
 Position_SetPieceLists:
 	; in: rbp Position
 	; out: set index, pieceCount, pieceList members in some fixed order
 	       push   rbx rsi rdi
+;		sub   rsp, 64
 
 	; fill indices with invalid index 0
 		lea   rdi, [rbp+Pos.pieceIdx]
@@ -116,9 +122,81 @@ end iterate
 		cmp   esi, 64
 		 jb   .NextSquare
 .Done:
+		;set sign materialidx
+		mov	rbx, qword[rbp+Pos.state]
+		mov	edi, dword[rbx+State.materialIdx]
+		or	edi, 0x80000000
+;		mov	dword[rbx+State.materialIdx], edi
+		call	IsMaterialNormal
+		mov	dword[rbx+State.materialIdx], edi
+		xor	eax,eax
 
+if	0
+;	constMaterial namedc		, cwQ	, cbQ	, cwR	, cbR	, cwBL	, cwBD	, cbBL	, cbBD	, cwN	, cbN	, cwP	, cbP
+	constMaterial testIdx		, 1	, 2	, 0	, 0	, 0	, 0	, 0	, 0	, 0	, 0	, 2	, 0	;KK
+		mov	eax, testIdx+0x80000000
+		mov	ecx, eax
+;		movsx   ecx, word[materialTableExM+8*rcx+MaterialEntryEx.value]
+		Display 0, "info string info::material::idx %i7 Constant=%i0 Value=%i1%n"
+		xor	eax,eax
+end if
+
+;		add   rsp, 64
 		pop   rdi rsi rbx
 		ret
+
+	calign 16
+IsMaterialNormal:
+		mov	eax, dword[rbp+Pos.pieceEnd+8*White+Knight]
+		and	eax, (15 shl 24) or (15 shl 16) or (15 shl 8) or (15)
+		cmp	al,3
+		jge	.EndDone
+		cmp	ah,3
+		jge	.EndDone
+		mov	dl,ah	;push...
+		shr	eax, 16
+		cmp	al,3
+		jge	.EndDone
+		cmp	ah,2
+		jge	.EndDone
+		mov	eax, dword[rbp+Pos.pieceEnd+8*Black+Knight]
+		and	eax, (15 shl 24) or (15 shl 16) or (15 shl 8) or (15)
+		cmp	al,3
+		jge	.EndDone
+		cmp	ah,3
+		jge	.EndDone
+		mov	dh,ah	;push again
+		shr	eax, 16
+		cmp	al,3
+		jge	.EndDone
+		cmp	ah,2
+		jge	.EndDone
+		cmp	dl,2
+		jne	@1f
+		mov	rax, LightSquares
+		mov	r11, qword[rbp+Pos.typeBB+8*Bishop]
+		and	r11, qword[rbp+Pos.typeBB+8*White]
+		test	r11, rax
+		jz	.EndDone
+		mov	rax, DarkSquares
+		test	r11, rax
+		jz	.EndDone
+@1:
+		cmp	dh,2
+		jne	@2f
+		mov	rax, LightSquares
+		mov	r11, qword[rbp+Pos.typeBB+8*Bishop]
+		and	r11, qword[rbp+Pos.typeBB+8*Black]
+		test	r11, rax
+		jz	.EndDone
+		mov	rax, DarkSquares
+		test	r11, rax
+		jz	.EndDone
+@2:
+		and	edi, 0x7fffffff
+	.EndDone:
+		ret
+
 
 
 if DEBUG
@@ -128,7 +206,7 @@ Position_VerifyState:
 	;      eax = -1 if not
 
 	       push   rbx rsi rdi r12 r13 r14 r15
-		sub   rsp, 64
+;		sub   rsp, 64
 		mov   rbx, qword[rbp+Pos.state]
 
 		mov   rax, qword[Zobrist_side]
@@ -145,10 +223,10 @@ Position_VerifyState:
 	@@:
 
 		mov   r14, [Zobrist_noPawns]
-		xor   r13, r13
+;		xor   r13, r13
 
 	     _vpxor   xmm0, xmm0, xmm0	; npMaterial
-	   _vmovdqu   dqword[rsp], xmm0
+;	   _vmovdqu   dqword[rsp], xmm0
 
 		xor   esi, esi
 .NextSquare:
@@ -166,10 +244,10 @@ Position_VerifyState:
 		jne   @f
 		xor   r14, qword[Zobrist_Pieces+rcx+8*rsi]
 	 @@:
-	      movzx   edx, byte [rsp+rax]
-		xor   r13, qword[Zobrist_Pieces+rcx+8*rdx]
-		add   edx, 1
-		mov   byte[rsp+rax], dl
+;	      movzx   edx, byte [rsp+rax]
+;		xor   r13, qword[Zobrist_Pieces+rcx+8*rdx]
+;		add   edx, 1
+;		mov   byte[rsp+rax], dl
 .Empty:
 		add   esi, 1
 		cmp   esi, 64
@@ -179,8 +257,8 @@ Position_VerifyState:
 		jne   .Failed
 		cmp   qword[rbx+State.pawnKey], r14
 		jne   .Failed
-		cmp   qword[rbx+State.materialKey], r13
-		jne   .Failed
+;		cmp   qword[rbx+State.materialKey], r13
+;		jne   .Failed
 	     _vmovq   rax, xmm0
 		cmp   qword[rbx+State.psq], rax
 		jne   .Failed
@@ -189,12 +267,12 @@ Position_VerifyState:
 		mov   rdx, qword[rbp+Pos.typeBB+8*King]
 		and   rdx, qword[rbp+Pos.typeBB+8*rcx]
 		bsf   rdx, rdx
-	       call   AttackersTo_Side
+	       call   AttackersTo_Side	;DEBUG
 		cmp   qword[rbx+State.checkersBB], rax
 		jne   .Failed
 
 		 or   eax,-1
-		add   rsp, 64
+;		add   rsp, 64
 		pop   r15 r14 r13 r12 rdi rsi rbx
 		ret
 
@@ -692,10 +770,10 @@ end iterate
 	       call   PrintHex
        PrintNewLine
 
-	     szcall   PrintString, 'materialKey:    '
-		mov   rcx, qword[rbx+State.materialKey]
-	       call   PrintHex
-       PrintNewLine
+;	     szcall   PrintString, 'materialKey:    '
+;		mov   rcx, qword[rbx+State.materialKey]
+;	       call   PrintHex
+;       PrintNewLine
 
 	     szcall   PrintString, 'psq:            '
 		mov   eax, 'mg: '
@@ -1131,7 +1209,7 @@ SetCastlingRights:
 		 je   .king_loop
 		add   byte[rbp-Thread.rootPos+Thread.castling_ksqpath+8*r15], 1
 		add   r11, 1
-		mov   byte[r11], r12l
+		mov   byte[r11], r12l	;error
 		mov   rcx, qword[KnightAttacks+8*r12]
 		 or   qword[rbp-Thread.rootPos+Thread.castling_knights+8*r15], rcx
 		mov   rcx, qword[KingAttacks+8*r12]

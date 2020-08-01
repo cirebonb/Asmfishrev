@@ -26,15 +26,25 @@ SetDefault 1, USE_SYZYGY
 SetDefault 1, USE_CMDLINEQUIT
 SetDefault 1, USE_HASHFULL
 SetDefault 1, USE_CURRMOVE
-SetDefault 0, USE_SPAMFILTER
 SetDefault 0, USE_WEAKNESS
-SetDefault 0, USE_VARIETY
-SetDefault 0, USE_MATEFINDER
-SetDefault 0, USE_LAST_PATCH
-SetDefault 0, MATERIALDRAW
+SetDefault 1, MATERIALDRAW
 SetDefault 1, USE_GAMECYCLE
+SetDefault 0, UpdateAtRoot
+SetDefault 1, SaveProbResult
+SetDefault 1, GetExtentionCheckFromHash
 
-SetDefault 1, PEDANTIC
+SetDefault 1, Countermoves_based_pruning_Model
+SetDefault 0, Continuation_Five
+SetDefault 0, No_Depth_Restriction
+SetDefault 100, QueenThreats	;2 =all threat;100= only queen threat
+SetDefault 0, RevertCheckChange
+SetDefault 0, NotReducedatRoot
+SetDefault 1, ModifiedHighTT
+SetDefault 1, LowDepthTT
+SetDefault 0, PrintFilter
+
+SetDefault 0, TRACE
+
 SetDefault '<empty>', LOG_FILE  ; use something other than <empty> to hardcode a starting log file into the engine
 
 SetDefault 'base', VERSION_POST
@@ -143,7 +153,6 @@ include 'Endgame.asm'
 include 'Evaluate.asm'
 include 'Hash_Probe.asm'
 include 'Move_IsPseudoLegal.asm'
-include 'SetCheckInfo.asm'
 include 'Move_GivesCheck.asm'
 include 'Gen_Captures.asm'
 include 'Gen_Quiets.asm'
@@ -165,21 +174,21 @@ QSearch_Pv_NoCheck:     QSearch   1, 0
 	     calign   64
 Search_NonPv:   search   0, 0
 
-include 'SeeTest.asm'
-include 'Move_DoNull.asm'
-include 'CheckTime.asm'
-include 'Castling.asm'
 
 	    calign   16
 Search_Pv:      search   0, 1
 	    calign   16
 Search_Root:    search   1, 1
 
+include 'Move_DoNull.asm'
+include 'SeeTest.asm'
+include 'CheckTime.asm'
+include 'Castling.asm'
+
 include 'Gen_NonEvasions.asm'
 include 'Gen_Legal.asm'
 include 'Perft.asm'
 include 'AttackersTo.asm'
-;include 'EasyMoveMng.asm'
 include 'Think.asm'
 include 'TimeMng.asm'
 if USE_WEAKNESS
@@ -213,8 +222,7 @@ include 'BitBoard_Init.asm'
 include 'BitTable_Init.asm'
 include 'Evaluate_Init.asm'
 include 'Pawn_Init.asm'
-include 'Endgame_Init.asm'
-
+include 'material.asm'
 ; for mac, data and bss cannot come before first code section (?)
 if VERSION_OS = 'X'
   segment '__DATA' readable writeable

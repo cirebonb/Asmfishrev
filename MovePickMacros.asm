@@ -1,26 +1,3 @@
-;version 07-04-2018 ;clobered edx,ecx , eax
-macro apply_bonus address, bonus32, absbonus, denominator
-		mov   eax, dword[address]
-	       imul   eax, absbonus
-		cdq
-		mov   ecx, denominator
-	       idiv   ecx
-		mov   ecx, bonus32
-
-;SD_String 'v'
-;SD_Int rcx
-
-		sub   ecx, eax
-		add   ecx, dword[address]
-		mov   dword[address], ecx
-;		add   dword[address], ecx
-
-;SD_String 'u'
-;SD_Int rcx
-;SD_String "|"
-
-end macro
-
 macro GetNextMove coldlabel
 	; in: rbp Position
 	;     rbx State
@@ -209,13 +186,14 @@ macro SeeSignTestQSearch JmpTo
 		call	SeeTestGe.HaveFromTo
 end macro
 
-macro ScoreCaptures start, ender, nomove
+macro ScoreCaptures start, next, ender, nomove
   local WhileLoop
 		cmp	start, ender
 		je	nomove	;jae
+		mov	next, start
 		mov	r8, qword[rbp + Pos.captureHistory]
 WhileLoop:
-		mov	eax, dword[start + ExtMove.move]
+		mov	eax, dword[next + ExtMove.move]
 		mov	ecx, eax
 		shr	ecx, 6
 		and	ecx, 63	;from
@@ -231,36 +209,37 @@ WhileLoop:
 ;		mov	eax, dword[r8 + 4*rcx]
 ;		sar	eax, 4	;div by 16?
 ;		add	edx, eax
-		mov	dword[start+ExtMove.value], edx
-		add	start, sizeof.ExtMove
-		cmp	start, ender
+		mov	dword[next+ExtMove.value], edx
+		add	next, sizeof.ExtMove
+		cmp	next, ender
 		jb	WhileLoop
 
 end macro
 
-
-
-macro ScoreQuiets start, ender, nomove
+macro ScoreQuiets start, next, ender, nomove
   local cmh, fmh, fmh2, history_get_c
   local Looping, TestLoop
 
 	cmh  equ r9
 	fmh  equ r10
 	fmh2 equ r11
+	fmh5 equ r15
 
 
 		cmp   start, ender
 		je   nomove		;jae
+		mov	next, start
 		mov   cmh, qword[rbx-1*sizeof.State+State.counterMoves]
 		mov   fmh, qword[rbx-2*sizeof.State+State.counterMoves]
 		mov   fmh2, qword[rbx-4*sizeof.State+State.counterMoves]
+if	Continuation_Five = 1
+		mov   fmh5, qword[rbx-6*sizeof.State+State.counterMoves]
+end if
 		mov   r8d, dword[rbp+Pos.sideToMove]
-		shl   r8d, 12+2
-		add   r8, qword[rbp+Pos.history]
-
+		mov   r8, qword[rbp+Pos.history+8*r8]
 	history_get_c equ r8
 Looping:
-		mov   eax, dword[start+ExtMove.move]
+		mov   eax, dword[next+ExtMove.move]
 		and   eax, (64*64)-1
 		mov   ecx, eax
 		mov   edx, eax
@@ -273,14 +252,19 @@ Looping:
 		add   eax, dword[cmh+4*rdx]
 		add   eax, dword[fmh+4*rdx]
 		add   eax, dword[fmh2+4*rdx]
-		mov   dword[start+ExtMove.value], eax
-		add   start, sizeof.ExtMove
-		cmp   start, ender
+if	Continuation_Five = 1
+		mov   edx, dword[fmh5+4*rdx]
+		sar	edx, 1
+		add	eax, edx
+end if
+		mov   dword[next+ExtMove.value], eax
+		add   next, sizeof.ExtMove
+		cmp   next, ender
 		 jb   Looping
 end macro
 
 ;revision removing castle moves
-macro ScoreEvasions start, ender, nomove
+macro ScoreEvasions start, next, ender, nomove
   local history_get_c
   local WhileLoop, Done, Capture
 
@@ -288,9 +272,9 @@ macro ScoreEvasions start, ender, nomove
 
 		cmp	start, ender
 		je	nomove		;jae
+		mov	next, start
 		mov	r8d, dword[rbp+Pos.sideToMove]
-		shl	r8d, 12+2
-		add	r8, qword[rbp+Pos.history]
+		mov	r8, qword[rbp+Pos.history+8*r8]
 		;
 ;		mov	r9d, dword[rbx-1*sizeof.State+State.currentMove]
 ;		and	r9d, 63	;to
@@ -301,9 +285,9 @@ macro ScoreEvasions start, ender, nomove
 ;		add	r9, qword[rbp+Pos.counterMoveHistory]
 
 WhileLoop:
-		mov	eax, dword[start+ExtMove.move]
+		mov	eax, dword[next+ExtMove.move]
 		mov	ecx, eax 				; ecx = move
-		add	start, sizeof.ExtMove
+		add	next, sizeof.ExtMove
 		and	eax, 63
 	      movzx	eax, byte[rbp+Pos.board+rax]	; eax = to piece
 	       test	eax, eax
@@ -322,8 +306,8 @@ WhileLoop:
 ;		add	ecx, edx
 ;		add	eax, dword[r9+4*rcx]
 		;
-		mov	dword[start-1*sizeof.ExtMove+ExtMove.value], eax
-		cmp	start, ender
+		mov	dword[next-1*sizeof.ExtMove+ExtMove.value], eax
+		cmp	next, ender
 		 jb	WhileLoop
 		jmp	Done
 Capture:			;or EPcap
@@ -334,8 +318,8 @@ Capture:			;or EPcap
 		and	ecx, 7
 		sub	eax, ecx
 		add	eax, HistoryStats_Max+1	; match piece types of master
-		mov	dword[start-1*sizeof.ExtMove+ExtMove.value], eax
-		cmp	start, ender
+		mov	dword[next-1*sizeof.ExtMove+ExtMove.value], eax
+		cmp	next, ender
 		 jb	WhileLoop
 Done:
 end macro

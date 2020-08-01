@@ -2,11 +2,11 @@
 ; to move is in check. Returns a pointer to the end of the move list.
 
 	     calign   16
-Gen_Evasions:		;r15 r13 -clobered-
+Gen_Evasions:		;r15 r14 r13 -clobered-
 	; in rbp address of position
 	;    rbx address of state
 	; io rdi address to write moves
-		push   rsi r12 r14
+		push   rsi r12
 		
 		xor	r12, r12
 		mov	r13d, dword[rbp+Pos.sideToMove]
@@ -28,7 +28,7 @@ Gen_Evasions:		;r15 r13 -clobered-
 		mov	r11, rsi
 .NextSlider:
 		bsf	rdx, rsi
-		or	r12, [LineBB+r9+8*rdx]
+		or	r12, qword[LineBB+r9+8*rdx]
 		_blsr	rsi, rsi, r8			;lea   t, [a-1] ; and   a, t
 		jnz	.NextSlider
 		not	r11
@@ -60,12 +60,12 @@ Gen_Evasions:		;r15 r13 -clobered-
 Gen_Evasions_White:
 	generate_all   White, EVASIONS
 .Ret:
-                pop   r14 r12 rsi
+                pop	r12 rsi
 		ret
 	generate_jmp   White, EVASIONS
 
 Gen_Evasions_Black:
 	generate_all   Black, EVASIONS
-                pop   r14 r12 rsi
+                pop	r12 rsi
 		ret
 	generate_jmp   Black, EVASIONS

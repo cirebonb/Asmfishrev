@@ -29,7 +29,7 @@ Move_GivesCheck:	;ecx stand
 		cmp	ecx, MOVE_TYPE_PROM shl 12
 		jae	.Special
 .Ret0:
-		xor	eax, eax
+		xor	rax, rax
 		ret
 .DiscoveredCheck:
 		movzx	edx, byte[rbx+State.ksq]		;was edi
@@ -39,7 +39,7 @@ Move_GivesCheck:	;ecx stand
 		bt	rax, rdx				;was edi
 		jc	.DiscoveredCheckRet
 .RetCheck:
-		or	eax, -1
+		or	rax, -1
 		ret
 .DiscoveredCheckRet:
 		cmp	ecx, MOVE_TYPE_PROM shl 12
@@ -89,7 +89,7 @@ Move_GivesCheck:	;ecx stand
 		RookAttacksClob	rax, rax, rdx
 ;	RookAttacks   rax, rax, rdx, r10
 		 bt   rax, r11
-		sbb   eax, eax
+		sbb   rax, rax
 		ret
 
 
@@ -107,7 +107,7 @@ Move_GivesCheck:	;ecx stand
 		or	rax, r11
 		and	rax, qword[rbp+Pos.typeBB+8*rsi]
 		neg	rax
-		sbb	eax, eax
+		sbb	rax, rax
 		pop	rsi
 		ret
 
@@ -117,14 +117,14 @@ Move_GivesCheck:	;ecx stand
 		;rdx clobered
 		QueenAttacksMinReg	rax, r9, rdx, r10
 		bt	rax, r11
-		sbb	eax, eax
+		sbb	rax, rax
 		ret
 	     calign   8
 .PromBishop:
 		BishopAttacksClob	rax, r9, rdx
 ;      BishopAttacks   rax, r9, rdx, r10
 		 bt   rax, r11
-		sbb   eax, eax
+		sbb   rax, rax
 		ret
 
 	     calign   8
@@ -132,13 +132,13 @@ Move_GivesCheck:	;ecx stand
 		RookAttacksClob		rax, r9, rdx
 ;	RookAttacks   rax, r9, rdx, r10
 		 bt   rax, r11
-		sbb   eax, eax
+		sbb   rax, rax
 		ret
 
 	     calign   8
 .PromKnight:
 		mov   rax, qword[KnightAttacks+8*r9]
 		 bt   rax, r11
-		sbb   eax, eax
+		sbb   rax, rax
 		ret
 

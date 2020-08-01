@@ -108,6 +108,18 @@ macro BishopAttacksClob x, sq, occ
   end if
 		mov   x, qword[x+8*(occ)]
 end macro
+macro BishopAttacksClobc x, sq, occ
+  if CPU_HAS_BMI2
+	       pext   occ, occ, qword[BishopAttacksPEXT+8*(sq)]
+		mov   x#d, dword[BishopAttacksMOFF+4*(sq)]
+  else
+		and   occ, qword[BishopAttacksPEXT+8*(sq)]
+	       imul   occ, qword[BishopAttacksIMUL+8*(sq)]
+		shr   occ, 64-9
+		mov   x#d, dword[BishopAttacksMOFF+4*(sq)]
+  end if
+		mov   occ, qword[x+8*(occ)]
+end macro
 
 
 macro RookAttacksTest x, sq, occ, t, targetreg

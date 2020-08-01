@@ -1,6 +1,56 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;
 ; assert
 ;;;;;;;;;;;;;;;;;;;;;;;;
+macro Testingmoves 
+;score edi
+	    PushAll
+		sub	rsp, 4*MAX_PLY
+		mov	rdi, rsp
+		mov   rax, 'info str'
+	      stosq
+		mov   rax, 'ing ply '
+	      stosq
+	        movzx   eax, byte[rbx+State.ply]
+	       call	PrintUnsignedInteger
+		mov   rax, ' Value '
+	      stosq
+	      dec	edi
+		mov   eax, dword[rsp+4*MAX_PLY+8*7]
+	       call	PrintUnsignedInteger
+
+		mov	eax, ' pv '
+		stosd
+
+		mov	r12, qword[Rootrbx]	;[.pv-4]
+		jmp	@2f
+    @1:
+;mov	ecx, eax
+;Display 0, "info string move %m1 r12=%i12 rbx=%i3 %n"
+		mov	ecx,	eax
+		call	_PrintUciMove
+		mov	qword[rdi], rax
+		add	rdi, rdx
+		add	r12, sizeof.State
+		mov  al, ' '
+		stosb
+    @2:
+		mov	eax, dword[r12+State.currentMove]
+	       cmp	r12, rbx
+	       jbe	@1b
+
+		mov   ecx, dword[rsp+4*MAX_PLY+8*7]
+		mov   rax, ' score '
+	      stosq
+		sub   rdi, 1
+	       call   PrintScore_Uci	;r10, r11 not clobered
+
+
+	PrintNL
+		mov	rcx, rsp
+		call	WriteLine
+		add	rsp, 4*MAX_PLY
+	     PopAll
+end macro
 
 macro Assert cc, a, b, mes
   if DEBUG = 1

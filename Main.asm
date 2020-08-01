@@ -23,8 +23,8 @@ end if
            call  Search_Init
            call  Evaluate_Init
            call  Pawn_Init
-           call  Endgame_Init
 
+	   call	CalculateMaterialValue
     ; setup logger
 if LOG_FILE = '<empty>'
             xor  ecx, ecx

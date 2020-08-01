@@ -12,9 +12,6 @@ end if
 MAX_RESETCNT = 100000
 MIN_RESETCNT = 40
 
-; if USE_SPAMFILTER, wait at least this ms before writing out info string
-SPAMFILTER_DELAY = 100
-
 ; if USE_CURRMOVE, don't print current move info before this number of ms
 CURRMOVE_MIN_TIME = 3000
 
@@ -87,9 +84,11 @@ Queen  = 6	;0110
 King   = 7	;0111
 
 ALL_PIECES     = 0
-QUEEN_DIAGONAL = 1
+;QUEEN_DIAGONAL = 1
+SLIDER_ON_QUEEN	= 1
 
 ; piece values
+
 PawnValueMg   = 175	;171
 KnightValueMg = 764
 BishopValueMg = 815	;826
@@ -104,13 +103,14 @@ QueenValueEg  = 2670	;2646
 
 MidgameLimit = 15258
 EndgameLimit = 3915
-
+BonusMargin	= PawnValueMg
 ; values for evaluation
 Eval_Tempo = 20
 
 ; values from stats tables
+ValueHigh	= 2147483647
 HistoryStats_Max = 268435456
-CmhDeadOffset    = 4*(8*64)*(16*64)
+CmhDeadOffset    = 4*(8*64)*(16*64)	;in bytes
 CounterMovePruneThreshold = 0
 
 ; depths for search
@@ -131,7 +131,7 @@ VALUE_INFINITE   = 32001
 VALUE_NONE	 = 32002
 VALUE_MATE_IN_MAX_PLY  =  VALUE_MATE - 2 * MAX_PLY
 VALUE_MATED_IN_MAX_PLY = -VALUE_MATE + 2 * MAX_PLY
-VALUE_MATE_IN_ONE_PLY	 = 32000-1
+VALUE_MATE_THREAT	 = -VALUE_MATE + 4 * MAX_PLY
 
 PHASE_MIDGAME	 = 128
 
@@ -140,6 +140,7 @@ SCALE_FACTOR_ONEPAWN = 48
 SCALE_FACTOR_NORMAL  = 64
 SCALE_FACTOR_MAX     = 128
 SCALE_FACTOR_NONE    = 255
+SCALE_FACTOR_BISHOP   = 10101010b
 
 ; move types
 MOVE_TYPE_NORMAL = 0
@@ -149,14 +150,14 @@ MOVE_TYPE_EPCAP  = 8
 MOVE_TYPE_CASTLE = 12
 ;1100b
 
-JUMP_IMM_1 = 1		;immediate to movepick
-JUMP_IMM_2 = 2		;allready has staticeval
+JUMP_IMM_1 = 1
+JUMP_IMM_2 = 2		;nulLmove
 JUMP_IMM_3 = 4		;jum to IID search before evalstate
-JUMP_IMM_4 = 8		;
-JUMP_IMM_5 = 16		;
+JUMP_IMM_4 = 8
+JUMP_IMM_5 = 16
 JUMP_IMM_6 = 32		;ttHit
-;JUMP_IMM_7 = 64		;reserved
-;JUMP_IMM_8 = 128	;reserved
+JUMP_IMM_7 = 64
+JUMP_IMM_8 = 128	;singular / zero moves / one or none bestmove
 
 ; special moves (should be <=0 as 32bit quantities)
 MOVE_NONE    = 0
@@ -169,6 +170,7 @@ QUIET_CHECKS = 2
 EVASIONS     = 3
 NON_EVASIONS = 4
 LEGAL	     = 5
+CAPTURES_CUSTOM = 6
 
 DELTA_N =  8
 DELTA_E =  1
@@ -189,37 +191,29 @@ BOUND_LOWER = 2
 BOUND_EXACT = 3
 
 ; endgame eval fxn indices  see Endgames_Int.asm for details
-EndgameEval_KPK_index	= 1  ; KP vs K
-EndgameEval_KNNK_index	= 2  ; KNN vs K
-EndgameEval_KBNK_index	= 3  ; KBN vs K
-EndgameEval_KRKP_index	= 4  ; KR vs KP
-EndgameEval_KRKB_index	= 5  ; KR vs KB
-EndgameEval_KRKN_index	= 6  ; KR vs KN
-EndgameEval_KQKP_index	= 7  ; KQ vs KP
-EndgameEval_KQKR_index	= 8  ; KQ vs KR
 
-ENDGAME_EVAL_MAP_SIZE = 8  ; this should be number of functions added to the eval map
+	EndgameEval_KPK_index	= 1  ; KP vs K
+	EndgameEval_KNNK_index	= 2  ; KNN vs K
+	EndgameEval_Draw_index	= 2	;insufficient
+	EndgameEval_KBNK_index	= 3  ; KBN vs K
+	EndgameEval_KRKP_index	= 4  ; KR vs KP
+	EndgameEval_KRKB_index	= 5  ; KR vs KB
+	EndgameEval_KRKN_index	= 6  ; KR vs KN
+	EndgameEval_KQKP_index	= 7  ; KQ vs KP
+	EndgameEval_KQKR_index	= 8  ; KQ vs KR
+	EndgameEval_KNNKP_index	= 9  ; KQ vs KR
+	EndgameEval_KXK_index	= 10 ; Generic mate lone king eval
 
-EndgameEval_KXK_index	= 10 ; Generic mate lone king eval
-
-ENDGAME_EVAL_MAX_INDEX = 16
-
-; endgame scale fxn indices  see Endgames_Int.asm for details
-EndgameScale_KNPK_index    = 1  ; KNP vs K
-EndgameScale_KNPKB_index   = 2  ; KNP vs KB
-EndgameScale_KRPKR_index   = 3  ; KRP vs KR
-EndgameScale_KRPKB_index   = 4  ; KRP vs KB
-EndgameScale_KBPKB_index   = 5  ; KBP vs KB
-EndgameScale_KBPKN_index   = 6  ; KBP vs KN
-EndgameScale_KBPPKB_index  = 7  ; KBPP vs KB
-EndgameScale_KRPPKRP_index = 8  ; KRPP vs KRP
-
-ENDGAME_SCALE_MAP_SIZE = 8  ; this should be number of functions added to the eval map
-
-EndgameScale_KBPsK_index   = 10 ; KB and pawns vs K
-EndgameScale_KQKRPs_index  = 11 ; KQ vs KR and pawns
-EndgameScale_KPsK_index    = 12 ; K and pawns vs K
-EndgameScale_KPKP_index    = 13 ; KP vs KP
-
-ENDGAME_SCALE_MAX_INDEX = 16
-
+	; endgame scale fxn indices  see Endgames_Int.asm for details
+	EndgameScale_KNPK_index    = 1  ; KNP vs K
+	EndgameScale_KNPKB_index   = 2  ; KNP vs KB
+	EndgameScale_KRPKR_index   = 3  ; KRP vs KR
+	EndgameScale_KRPKB_index   = 4  ; KRP vs KB
+	EndgameScale_KBPKB_index   = 5  ; KBP vs KB
+	EndgameScale_KBPKN_index   = 6  ; KBP vs KN
+	EndgameScale_KBPPKB_index  = 7  ; KBPP vs KB
+	EndgameScale_KRPPKRP_index = 8  ; KRPP vs KRP
+	EndgameScale_KBPsK_index   = 10 ; KB and pawns vs K
+	EndgameScale_KQKRPs_index  = 11 ; KQ vs KR and pawns
+	EndgameScale_KPsK_index    = 12 ; K and pawns vs K
+	EndgameScale_KPKP_index    = 13 ; KP vs KP

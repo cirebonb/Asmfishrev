@@ -68,10 +68,10 @@ end virtual
 		not   rax
               stosq
               stosq
-                lea   rdi, [IsNotPieceMasks]
-		mov   eax, 00FFH
-              stosq
-              stosq
+;                lea   rdi, [IsNotPieceMasks]
+;		mov   eax, 00FFH
+;              stosq
+;              stosq
 
 		lea   rdi, [PieceValue_MG]
 		lea   rsi, [.PieceValue_MG]
@@ -80,20 +80,6 @@ end virtual
 		lea   rsi, [.PieceValue_MG]
 		mov   ecx, 8
 	  rep movsd
-
-		lea   rdi, [PieceSee_MG]
-		lea   rsi, [.PieceValue_MG]
-		mov   ecx, 7
-	  rep movsd
-		mov   eax, 0xC0000000
-		stosd
-		lea   rsi, [.PieceValue_MG]
-		mov   ecx, 7
-	  rep movsd
-		stosd
-
-
-
 		lea   rdi, [PieceValue_EG]
 		lea   rsi, [.PieceValue_EG]
 		mov   ecx, 8
@@ -161,16 +147,9 @@ end virtual
 		jbe   .TypeLoop
 
 if USE_GAMECYCLE = 1
-                xor	eax,eax
-		lea	rdi, [cuckoo]
-		mov	ecx,8192
-		rep	stosq
-                lea   rdi, [cuckooMove]
-		mov	ecx,8192
-		rep	stosw
-		call	Init_cuckoo
-end if
+	       call	Init_cuckoo
 
+end if
 
 	      .Return:
 		add   rsp, .localsize

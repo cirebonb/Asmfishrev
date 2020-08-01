@@ -1,13 +1,5 @@
-	     calign  16, SeeTestGe.HaveFromTo
-SeeTestGe:
-	; in: rbp address of Pos
-	;     rbx address of State
-	;     ecx capture move
-	;     edx value
-	;	r11	bool indirect check extended??
-	; out: eax = 1 if  see >= edx
-	;      eax = 0 if  see <  edx
-	; r8,r9, r13, rcx not clobbered
+;there is other idea for check condition,if kingopp cant move retun 1, how?
+
 from		equ r8
 to		equ r9
 stm		equ rsi
@@ -19,8 +11,17 @@ bb_d		equ edi
 stmAttackers	equ r12
 swap		equ edx
 res		equ eax
-QxB		equ r10
-QxR		equ r11
+Pin_stm		equ r10
+Pin_xstm	equ r11
+		calign  16, SeeTestGe.HaveFromTo
+SeeTestGe:
+	; in: rbp address of Pos
+	;     rbx address of State
+	;     ecx capture move
+	;     edx value
+	;	r11	bool indirect check extended??
+	; out: eax = 1 if  see >= edx
+	;      eax = 0 if  see <  edx
 
 	; r8 = from
 	; r9 = to
@@ -30,6 +31,7 @@ QxR		equ r11
 		mov	r9d, ecx
 		and	r9d, 63
 .HaveFromTo:
+	; r8,r9, r13, rcx not clobbered
 		neg	swap
 		xor	res, res
 
@@ -45,22 +47,29 @@ QxR		equ r11
 		neg	swap
 		push	stm
 		movzx	stm_d, byte[rbp+Pos.board+from]
-		add	swap, dword[PieceSee_MG+4*stm]	; use piece_on(from)
+		add	swap, dword[PieceValue_MG+4*stm]	; use piece_on(from)
 		cmp	swap, res
-		jl	.ReturnOnly0	; 13.63%	kingmoves filtered
+		jl	.ReturnOnly0	; 13.63%	
+		;kingmoves filtered or never passed
+.Process:
+		push	r12 r13 r14 r15 rdi			; so out: rcx, r8 & r9 stand pat
 
-		push	r12 r13 r14 r15 rdi		;r13 r14 r15 rsi rdi r8 & r9 stand pat
-;.EpCaptureRet:
 		and	stm_d, 8
-	; r10 = bishops + queens
-	; r11 = rooks + queens
-		mov	QxB, qword[rbx+State.checkSq+8]	; QxB
-		mov	QxR, qword[rbx+State.checkSq]	; QxR
+		mov	edi, stm_d
+		xor	edi, 8
+
+		mov	Pin_stm, qword[rbx+State.pinnersForKing+stm]
+		mov	Pin_xstm, qword[rbx+State.pinnersForKing+bb]
+;.EpCaptureRet:
 		mov	occupied, qword[rbx+State.Occupied]
 		btr	occupied, from
 		btr	occupied, to
 		;btc	occupied, to
+		;btr	Pin_xstm, to
 
+		and	Pin_stm, occupied	;incase get capture
+		and	Pin_xstm, occupied	;incase of moving sniper
+;end move block
 	; at this point .from register r8 is free
 	;  rdi, rcx are also free
 
@@ -83,21 +92,21 @@ QxR		equ r11
 		and	r13, qword[rbx+State.dcCandidates]
 .Loop1st:
 		RookAttacks   rdi, to, occupied, stmAttackers
-		and	rdi, QxR
+		and	rdi, qword[rbx+State.checkSq]	; QxR
 		or	attackers, rdi
 .Loop2nd:
 		BishopAttacks   rdi, to, occupied, stmAttackers
-		and	rdi, QxB
+		and	rdi, qword[rbx+State.checkSq+8]	; QxB
 		or	attackers, rdi
 .Loop:	      ; while (1) {
 		test	r13, r13
 		jnz	.finalized
 .Loop0:
-		mov	r13, qword[rbx+State.blockersForKing+stm]	;set dcCandidate for opp?
+		mov	r13, qword[rbx+State.blockersForKing+stm]	;or dcCandidate for opp?
 		xor	stm_d, 8
+		xchg	Pin_stm, Pin_xstm
 		and	attackers, occupied
 
-	; modified old
 		mov	stmAttackers, qword[rbp+Pos.typeBB+stm]
 		and	stmAttackers, attackers
 		jz	.Return	; 44.45%
@@ -127,13 +136,11 @@ QxR		equ r11
 		and	bb, stmAttackers
 		jnz	.FoundQueen
 
-.FoundKing:
 		xor	stm_d, 8
-		mov	stmAttackers, qword[rbp+Pos.typeBB+stm]
-		and	stmAttackers, attackers
+		and	attackers, qword[rbp+Pos.typeBB+stm]
 	; .res has already been flipped so we must do
 	;    return stmAttackers ? res^1 : res;
-		neg	stmAttackers
+		neg	attackers
 		adc	res, 0
 		and	res, 1
 .Return:
@@ -157,10 +164,11 @@ xor	r13d, r13d
 		cmp	swap, res
 		jl	.Return
 and	r13,bb
+cmovnz	bb, r13
 		_blsi	bb, bb, stmAttackers
 		xor	occupied, bb
 		RookAttacks	rdi, to, occupied, stmAttackers
-		and	rdi, QxR
+		and	rdi, qword[rbx+State.checkSq]	;QxR
 		or	attackers, rdi
 		jmp	.Loop
 	     calign   8
@@ -171,7 +179,7 @@ and	r13,bb
 		cmp	swap, res
 		jl	.Return2
 and	r13,bb
-
+cmovnz	bb, r13
 		_blsi	bb, bb, stmAttackers
 		xor	occupied, bb
 		jmp	.Loop2nd
@@ -181,6 +189,7 @@ and	r13,bb
 		cmp	swap, res
 		 jl	.Return2
 and	r13,bb
+cmovnz	bb, r13
 
 		_blsi	bb, bb, stmAttackers
 		xor	occupied, bb
@@ -191,54 +200,79 @@ and	r13,bb
 		ret
          calign  8
 .finalized:
+		;found dcCandidates move
+		and	Pin_xstm, occupied
+		jz	.Loop0
 		;240 =King Black 112=King white
 		mov	r12d, stm_d
 		xor	r12d, 8
 		mov	rdi, qword[rbp+Pos.typeBB+8*King]
 		and	rdi, qword[rbp+Pos.typeBB+r12]	;attacked king
-		_tzcnt	r12, rdi
-		
+		_tzcnt	r12, rdi	;king
+		_tzcnt	r13, r13	;from
 		shl	r12, 6+3
-		test	r13, qword[LineBB+r12+8*to]	;move inline with king?
-		jnz	.Loop0				;yes
-
-		_tzcnt	r13, r13
-		mov	r13, qword[LineBB+r12+8*r13]	;move from king
-		and	r13, occupied
-		mov	r12d, stm_d
-		xor	r12d, 8
-		and	r13, qword[rbx+State.pinnersForKing+r12]
+		mov	r13, qword[LineBB+r12+8*r13]
+		bt	r13, to		;move inline with king?
+		jc	.Loop0
+		and	r13, Pin_xstm
 		jz	.Loop0
-		
 		and	rdi, attackers			;oppking as attacker?
-		jz	.Return2			;no
-
+		jz	.Return2			;moveischeck
 		and	attackers, occupied
 		and	attackers, qword[rbp+Pos.typeBB+stm]	;is move protected?
-		jnz	.Return2			;yes
-		xor	res, 1				;otherwise no
+		jnz	.Return2			;moveischeck & protected
+		xor	res, 1
 		jmp	.Return2
 	 calign  8
 .Pinned:
-
-		mov	rdi, qword[rbx+State.pinnersForKing+stm]
-		and	rdi, occupied
-		cmp	rdi, qword[rbx+State.pinnersForKing+stm]
-		jne	.afterloop
-		mov	rdi, qword[rbx+State.blockersForKing+stm]
+		and	Pin_stm, occupied
+		jz	.afterloop
+		; r12 = stmAttackers
+		push	r15 r13 r12
+		and	r12, qword[rbx+State.blockersForKing+stm]
+		mov	r13, r12
+	@@:
+		_tzcnt	rdi, r13	;test sq 'from' blocker
+		shl	rdi, 6+3
+		mov	r15, rdi
+		mov	rdi, qword[LineBB+rdi+8*to]
+		test	rdi, Pin_stm
+		jnz	.notPinned	;one single line -> blocker->to->pinner
+		test	rdi, rdi
+		jz	.KnightPin
+		;moving blocker not allowed
+	.yesPinned:
+		and	rdi, r12			;get 'inactive' bb blocker
+		not	rdi				;else blocker mask
+		and	r12, rdi			;provide remain 'active' blocker as Attacker
+	.notPinned:
+		_blsr	r13, r13, rdi
+		jnz	@b
+		mov	rdi, r12
+		not	rdi				;get mask 'inactive' bb blocker
+		and	rdi, qword[rbx+State.blockersForKing+stm]
 		not	rdi
+		pop	r12 r13 r15
+
 		and	stmAttackers, rdi
-;		jz	.Return2	; 45.06%
 		jnz	.afterloop
 		pop	rdi r15 r14 r13 r12 rsi
 		ret
-         calign  8
+	calign  8
+.KnightPin:
+		mov	rdi, qword[rbp+Pos.typeBB+8*King]
+		and	rdi, qword[rbp+Pos.typeBB+stm]	;attacked king
+		_tzcnt	rdi, rdi
+		mov	rdi, qword[LineBB+r15+8*rdi]
+		test	Pin_stm, rdi			;'sniper' exist
+		jnz	.yesPinned
+		jmp	.notPinned
+	calign  8
 .Special:
 	; if we get here, swap = -value  and  res = 0
 		cmp	swap, 0x80000000
 		adc	res, res
 		ret
-
 restore from
 restore to
 restore stm
@@ -250,6 +284,6 @@ restore bb_d
 restore stmAttackers
 restore swap
 restore res
-restore QxB
-restore QxR
+restore Pin_stm
+restore Pin_xstm
 

@@ -112,7 +112,7 @@ ThreadPool_DisplayThreadDistribution:
            push  rax rax
             mov  rdx, rsp
            call  PrintFancy
-            pop  rax rax
+            add	rsp, 8*2	;pop  rax rax
 
              or  ebx, -1
 .ThreadLoop:
@@ -155,10 +155,8 @@ end virtual
 	 _chkstk_ms   rsp, .localsize
 		sub   rsp, .localsize
 		mov   rsi, rcx
-		mov   r15, rbp
 		mov   r14, qword[threadPool.threadTable+8*0]
 	; rsi = address of limits
-	; r15 = gui position
 	; r14 = main thread
 
 		mov   rcx, r14
@@ -180,37 +178,37 @@ end virtual
 		mov   rbx, qword[rbp+Pos.state]
 	       call   Gen_Legal
 .have_moves:
-		lea   rsi, [.moveList]
-		lea   rcx, [r14+Thread.rootPos+Pos.rootMovesVec]
-	       call   RootMovesVec_Clear
+		lea	rsi, [.moveList]
+		;RootMovesVec_Clear
+		mov	rax, qword[r14+Thread.rootPos+Pos.rootMovesVec+RootMovesVec.table]
+		mov	rcx, (0xffff82ff shl 32) or (0xffff82ff)
+		mov	r13d, 1
     .push_moves:
-		cmp   rsi, rdi
-		jae   .push_moves_done
-		lea   rcx, [r14+Thread.rootPos+Pos.rootMovesVec]
-		mov   edx, dword[rsi+ExtMove.move]
-		add   rsi, sizeof.ExtMove
-	       call   RootMovesVec_PushBackMove
-		jmp   .push_moves
+		cmp	rsi, rdi
+		jae	.push_moves_done
+		mov	edx, dword[rsi+ExtMove.move]
+;RootMovesVec_PushBackMove:
+		mov	qword[rax+RootMove.prevScore], rcx	;+.score
+		mov	qword[rax+RootMove.pvSize], r13		;+selDepth
+		mov	dword[rax+RootMove.pv], edx
+		add	rax, sizeof.RootMove
+		add	rsi, sizeof.ExtMove
+		jmp	.push_moves
     .push_moves_done:
-
+		mov	qword[r14+Thread.rootPos+Pos.rootMovesVec+RootMovesVec.ender], rax
 	; next, copy to mainThread
-		xor   eax, eax
-		mov   dword[r14+Thread.rootDepth], eax
-		mov   qword[r14+Thread.nodes], rax
-		mov   qword[r14+Thread.tbHits], rax
-
-		mov   dword[r14+Thread.nmp_ply], eax
-		mov	al, MIN_RESETCNT
-		mov   qword[r14+Thread.callsCnt], rax
-;		mov   byte[r14+Thread.selDepth], al
-                ;mov   dword[r14+Thread.resetCnt], eax
-                ;mov   dword[r14+Thread.callsCnt], MIN_RESETCNT  ; check time asap
-		lea   rcx, [r14+Thread.rootPos]
-	       call   Position_CopyToSearch
+		xor	eax, eax
+		mov	dword[r14+Thread.nmp_ply], eax	;+selDepth
+		mov	qword[r14+Thread.nodes], rax
+		mov	qword[r14+Thread.tbHits], rax
+		mov	al, MIN_RESETCNT		; check time asap
+		mov	qword[r14+Thread.callsCnt], rax
+		lea	rcx, [r14+Thread.rootPos]
+		call	Position_CopyToSearch
 
         ; switch rbp and rbx to position of main thread
-		lea   rbp, [r14+Thread.rootPos]
-		mov   rbx, qword[rbp+Pos.state]
+		lea	rbp, [r14+Thread.rootPos]
+		mov	rbx, qword[rbp+Pos.state]
 
         ; since gui thread does not have a rootmoves vector
         ;   do filtering of tb moves in the main thread
@@ -233,13 +231,13 @@ if USE_SYZYGY
 		mov   dword[Tablebase_Cardinality], eax
 		mov   dword[Tablebase_ProbeDepth], ecx
 	; filter moves
+		mov   rdx, qword[rbp+Pos.rootMovesVec.ender]
+		cmp   rdx, qword[rbp+Pos.rootMovesVec.table]
+		jbe   .check_tb_ret
 ;		mov   rcx, qword[rbp+Pos.typeBB+8*White]
 ;		 or   rcx, qword[rbp+Pos.typeBB+8*Black]
 		mov	rcx, qword[rbx+State.Occupied]
 	    _popcnt   rcx, rcx, rdx
-		mov   rdx, qword[rbp+Pos.rootMovesVec.ender]
-		cmp   rdx, qword[rbp+Pos.rootMovesVec.table]
-		jbe   .check_tb_ret
 		sub   eax, ecx
 		sar   eax, 31
 		 or   al, byte[rbx+State.castlingRights]
@@ -254,8 +252,9 @@ end if
 	; position is passed to threads by first converting to a fen
 	;   and then parsing this fen string
 	; the net effect is a fixed order on piece lists
-	       call   Position_SetPieceLists
-
+if	0	;Imnot sure
+	       call   Position_SetPieceLists		;allready set on Position_CopyToSearch??????? line 2017
+end if
 	; copy position in main thread to workers
 		xor   eax, eax
                 mov   qword[r14+Thread.nodes], rax  ;filtering moves may have incremented mainThread.nodes
@@ -266,38 +265,34 @@ end if
 		jae   .thread_copy_done
 
         ; get address of worker thread
-		mov   rsi, qword[threadPool.threadTable+8*rdi]
-
-		lea   rcx, [rsi+Thread.rootPos]
-	       call   Position_CopyToSearch
-		xor   eax, eax
-		mov   dword[rsi+Thread.rootDepth], eax
-		mov   qword[rsi+Thread.nodes], rax
-		mov   qword[rsi+Thread.tbHits], rax
-
-		mov   dword[rsi+Thread.nmp_ply], eax
-		mov	al,MIN_RESETCNT
-		mov   qword[rsi+Thread.callsCnt], rax
-		;mov   byte[rsi+Thread.selDepth], al
-                ;mov   dword[rsi+Thread.resetCnt], eax
-                ;mov   dword[rsi+Thread.callsCnt], MAX_RESETCNT  ; main thread already has min
-
+		mov	rsi, qword[threadPool.threadTable+8*rdi]
+		lea	rcx, [rsi+Thread.rootPos]
+		call	Position_CopyToSearch
+		xor	eax, eax
+		mov	dword[rsi+Thread.nmp_ply], eax	;+selDepth
+		mov	qword[rsi+Thread.nodes], rax
+		mov	qword[rsi+Thread.tbHits], rax
+		mov	eax,MAX_RESETCNT	; main thread already has min
+		mov	qword[rsi+Thread.callsCnt], rax	;+.resetCnt
 
 	; copy the filtered moves of main thread to worker thread
-		mov   rax, qword[rsi+Thread.rootPos.rootMovesVec.table]
-		mov   rdx, qword[r14+Thread.rootPos.rootMovesVec.table]
+		mov	rax, qword[rsi+Thread.rootPos.rootMovesVec.table]
+		mov	rdx, qword[r14+Thread.rootPos.rootMovesVec.table]
+		mov	r13, qword[r14+Thread.rootPos.rootMovesVec.ender]
+		sub	r13, rdx
+		xor	ecx, ecx
 .copy_moves_loop:
-		cmp   rdx, qword[r14+Thread.rootPos.rootMovesVec.ender]
-		jae   .copy_moves_done
-	   _vmovups   xmm0, dqword[rdx+0]    ; this should be sufficient to copy
-	   _vmovups   xmm1, dqword[rdx+16]   ; up to and including first move of pv
-	   _vmovups   dqword[rax+0], xmm0    ;
-	   _vmovups   dqword[rax+16], xmm1   ;
-		add   rax, sizeof.RootMove
-		add   rdx, sizeof.RootMove
-		jmp   .copy_moves_loop
+		cmp	rcx, r13
+		jae	.copy_moves_done
+	   _vmovups	xmm0, dqword[rdx+rcx+0]    ; this should be sufficient to copy
+	   _vmovups	xmm1, dqword[rdx+rcx+16]   ; up to and including first move of pv
+	   _vmovups	dqword[rax+rcx+0], xmm0    ;
+	   _vmovups	dqword[rax+rcx+16], xmm1   ;
+		add	rcx, sizeof.RootMove
+		jmp	.copy_moves_loop
 .copy_moves_done:
-		mov   qword[rsi+Thread.rootPos.rootMovesVec.ender], rax
+		add	rax, rcx	;lea	rax, [rax+rcx]
+		mov	qword[rsi+Thread.rootPos.rootMovesVec.ender], rax
 
 		jmp   .next_thread
 .thread_copy_done:
@@ -328,8 +323,14 @@ if USE_SYZYGY
 	      cmovl   edx, dword[Tablebase_Cardinality]
     .root_in:
 		mov   dword[Tablebase_Cardinality], edx
-		lea   rcx, [rbp+Pos.rootMovesVec]
-	       call   RootMovesVec_Size
+	       ;RootMovesVec_Size
+;		mov	eax,dword[rbp+Pos.rootMovesSize]
+		mov   rax, qword[rbp+Pos.rootMovesVec+RootMovesVec.ender]
+		sub   rax, qword[rbp+Pos.rootMovesVec+RootMovesVec.table]
+		mov   ecx, sizeof.RootMove
+		xor   edx, edx
+		div   ecx
+
 		mov   qword[rbp-Thread.rootPos+Thread.tbHits], rax
 	      movzx   edx, byte[Tablebase_UseRule50]
 		mov   eax, dword[Tablebase_Score]

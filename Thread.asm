@@ -57,11 +57,8 @@ Thread_Create:
 
 	; init some thread data
 		xor	rax, rax
-;		xor   eax, eax
 		mov   byte[rbx+Thread.exit], al
-		mov   qword[rbx+Thread.callsCnt], rax
-                ;mov   dword[rbx+Thread.resetCnt], eax   ; resetCnt is set to minimum in 
-                ;mov   dword[rbx+Thread.callsCnt], eax   ;  ThreadPool_StartThinking
+		mov   qword[rbx+Thread.callsCnt], rax	; resetCnt + callsCnt
 		mov   dword[rbx+Thread.idx], esi
 		mov   qword[rbx+Thread.numaNode], rdi
 
@@ -75,59 +72,67 @@ Thread_Create:
 	       call   Os_EventCreate
 
 	; the states will be allocated when copying position to thread
-		xor   eax, eax
-		mov   qword[rbx+Thread.rootPos+Pos.state], rax
-		mov   qword[rbx+Thread.rootPos+Pos.stateTable], rax
-		mov   qword[rbx+Thread.rootPos+Pos.stateEnd], rax
+		xor	eax, eax
+		mov	qword[rbx+Thread.rootPos+Pos.state], rax
+		mov	qword[rbx+Thread.rootPos+Pos.stateTable], rax
+		mov	qword[rbx+Thread.rootPos+Pos.stateEnd], rax
 
-	; create the vector of root moves
-		lea   rcx, [rbx+Thread.rootPos+Pos.rootMovesVec]
-		mov   edx, r15d
-	       call   RootMovesVec_Create
 
-	; allocate stats
-		mov   ecx, sizeof.HistoryStats + sizeof.CapturePieceToHistory + sizeof.MoveStats
-		mov   edx, r15d
-	       call   Os_VirtualAllocNuma
-		mov   qword[rbx+Thread.rootPos.history], rax
-		add   rax, sizeof.HistoryStats
-		mov   qword[rbx+Thread.rootPos.captureHistory], rax
-		add   rax, sizeof.CapturePieceToHistory
-		mov   qword[rbx+Thread.rootPos.counterMoves], rax
+	; allocate root moves + allocate stats + allocate pawn hash + allocate material hash + allocate move list
+		lea	r14, [rbx+Thread.rootPos+Pos.rootMovesVec]
+		mov	ecx, sizeof.RootMove*MAX_MOVES+sizeof.HistoryStats + sizeof.CapturePieceToHistory + sizeof.MoveStats +MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry+ PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry + AVG_MOVES*MAX_PLY*sizeof.ExtMove
+		mov	edx, r15d
+		call	Os_VirtualAllocNuma
+		mov	qword[r14+RootMovesVec.table], rax
+		mov	qword[r14+RootMovesVec.ender], rax
+		add	rax, sizeof.RootMove*MAX_MOVES
+if (sizeof.RootMove*MAX_MOVES) and 15
+ err	'sizeof.RootMove*MAX_MOVES tidak genap'
+end if
 
-	; allocate pawn hash
-		mov   ecx, PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry
-		mov   edx, r15d
-	       call   Os_VirtualAllocNuma
-		mov   qword[rbx+Thread.rootPos+Pos.pawnTable], rax
+		lea	rcx, [rax+(1 shl 14)]
+		mov	qword[rbx+Thread.rootPos.history], rax		;White
+		mov	qword[rbx+Thread.rootPos.history+8], rcx	;Black
+		add	rax, sizeof.HistoryStats
+if (sizeof.HistoryStats) and 15
+ err	'sizeof.HistoryStats tidak genap'
+end if
+		mov	qword[rbx+Thread.rootPos.captureHistory], rax
+		add	rax, sizeof.CapturePieceToHistory
+if (sizeof.CapturePieceToHistory) and 15
+ err	'sizeof.CapturePieceToHistory tidak genap'
+end if
+		mov	qword[rbx+Thread.rootPos.counterMoves], rax
+		add	rax, sizeof.MoveStats
+	; material entry shared to..
+		lea	rcx, [rax+MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry]
+		lea	rdx, [rcx+PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry]
+if (MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry) and 15
+ err	'MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry tidak genap'
+end if
+		mov	qword[rbx+Thread.rootPos+Pos.materialTable], rax
 
-	; allocate material hash
-		mov   ecx, MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry
-		mov   edx, r15d
-	       call   Os_VirtualAllocNuma
-		mov   qword[rbx+Thread.rootPos+Pos.materialTable], rax
-	; allocate move list
-		mov   ecx, AVG_MOVES*MAX_PLY*sizeof.ExtMove
-		mov   edx, r15d
-	       call   Os_VirtualAllocNuma
-		mov   qword[rbx+Thread.rootPos+Pos.moveList], rax
+if (PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry) and 15
+ err	'PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry tidak genap'
+end if
+		mov	qword[rbx+Thread.rootPos+Pos.pawnTable], rcx
+		mov	qword[rbx+Thread.rootPos+Pos.moveList], rdx
 
     ; per node memory allocations
 	; use cmh table from node(group) or allocate new one
-		mov   r14, qword[rdi+NumaNode.parent]
-		mov   rax, qword[r14+NumaNode.cmhTable]
-		mov   ecx, sizeof.CounterMoveHistoryStats
-		mov   edx, r15d
-	       test   rax, rax
-		jnz   @1f
-	       call   Os_VirtualAllocNuma
-		mov   qword[r14+NumaNode.cmhTable], rax
+		mov	r14, qword[rdi+NumaNode.parent]
+		mov	rax, qword[r14+NumaNode.cmhTable]
+		test	rax, rax
+		jnz	@1f
+		mov	ecx, sizeof.CounterMoveHistoryStats
+		mov	edx, r15d
+		call	Os_VirtualAllocNuma
+		mov	qword[r14+NumaNode.cmhTable], rax
 	@1:	
-                mov   qword[rbx+Thread.rootPos.counterMoveHistory], rax
-
+                mov	qword[rbx+Thread.rootPos.counterMoveHistory], rax
 	; start the thread and wait for it to enter the idle loop
-		lea   rcx, [rbx+Thread.mutex]
-	       call   Os_MutexLock
+		lea	rcx, [rbx+Thread.mutex]
+		call	Os_MutexLock
 
 		mov   byte[rbx+Thread.searching], -1
 		lea   rcx, [Thread_IdleLoop]
@@ -167,121 +172,102 @@ Thread_Delete:
 		lea   rcx, [rbx+Thread.threadHandle]
 	       call   Os_ThreadJoin
 
-	; free move list
-		mov   rcx, qword[rbx+Thread.rootPos.moveList]
-		mov   edx, AVG_MOVES*MAX_PLY*sizeof.ExtMove
-	       call   Os_VirtualFree
-		xor   eax, eax
-		mov   qword[rbx+Thread.rootPos.moveList], rax
-
-	; free material hash
-		mov   rcx, qword[rbx+Thread.rootPos.materialTable]
-		mov   edx, MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry
-	       call   Os_VirtualFree
-		xor   eax, eax
-		mov   qword[rbx+Thread.rootPos.materialTable], rax
-
-	; free pawn hash
-		mov   rcx, qword[rbx+Thread.rootPos.pawnTable]
-		mov   edx, PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry
-	       call   Os_VirtualFree
-		xor   eax, eax
-		mov   qword[rbx+Thread.rootPos.pawnTable], rax
-
-	; free stats
-		mov   rcx, qword[rbx+Thread.rootPos.history]
-		mov   edx, sizeof.HistoryStats + sizeof.CapturePieceToHistory + sizeof.MoveStats
-	       call   Os_VirtualFree
-		xor   eax, eax
-		mov   qword[rbx+Thread.rootPos.history], rax
-		mov   qword[rbx+Thread.rootPos.counterMoves], rax
-
-	; destroy the vector of root moves
-		lea   rcx, [rbx+Thread.rootPos.rootMovesVec]
-	       call   RootMovesVec_Destroy
+	; free pawn hash + free material hash + free move list free stats + free root moves
+		lea	r14, [rbx+Thread.rootPos.rootMovesVec]
+		mov	rcx, qword[r14+RootMovesVec.table]
+		mov	edx, sizeof.HistoryStats + sizeof.CapturePieceToHistory + sizeof.MoveStats + PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry + MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry + AVG_MOVES*MAX_PLY*sizeof.ExtMove
+		call	Os_VirtualFree
+		xor	eax, eax
+		mov	qword[rbx+Thread.rootPos.pawnTable], rax
+		mov	qword[rbx+Thread.rootPos.materialTable], rax
+		mov	qword[rbx+Thread.rootPos.moveList], rax
+		mov	qword[rbx+Thread.rootPos.history], rax
+		mov	qword[rbx+Thread.rootPos.history+8], rax
+		mov	qword[rbx+Thread.rootPos.counterMoves], rax
+		mov	qword[r14+RootMovesVec.table], rax
+		mov	qword[r14+RootMovesVec.ender], rax
 
 	; destroy the state table
-		mov   rcx, qword[rbx+Thread.rootPos.stateTable]
-		mov   rdx, qword[rbx+Thread.rootPos.stateEnd]
-		sub   rdx, rcx
-	       call   Os_VirtualFree
-		xor   eax, eax
-		mov   qword[rbx+Thread.rootPos.state], rax
-		mov   qword[rbx+Thread.rootPos.stateTable], rax
-		mov   qword[rbx+Thread.rootPos.stateEnd], rax
+		mov	rcx, qword[rbx+Thread.rootPos.stateTable]
+		mov	rdx, qword[rbx+Thread.rootPos.stateEnd]
+		sub	rdx, rcx
+	       call	Os_VirtualFree
+		xor	eax, eax
+		mov	qword[rbx+Thread.rootPos.state], rax
+		mov	qword[rbx+Thread.rootPos.stateTable], rax
+		mov	qword[rbx+Thread.rootPos.stateEnd], rax
 
 	; destroy sync objects
-		lea   rcx, [rbx+Thread.sleep2]
-	       call   Os_EventDestroy
-		lea   rcx, [rbx+Thread.sleep1]
-	       call   Os_EventDestroy
-		lea   rcx, [rbx+Thread.mutex]
-	       call   Os_MutexDestroy
+		lea	rcx, [rbx+Thread.sleep2]
+		call	Os_EventDestroy
+		lea	rcx, [rbx+Thread.sleep1]
+		call	Os_EventDestroy
+		lea	rcx, [rbx+Thread.mutex]
+		call	Os_MutexDestroy
 
 	; free self
-		mov   rcx, qword[threadPool.threadTable+8*rsi]
-		mov   edx, sizeof.Thread
-	       call   Os_VirtualFree
-		xor   eax, eax
-		mov   qword[threadPool.threadTable+8*rsi], rax
+		mov	rcx, qword[threadPool.threadTable+8*rsi]
+		mov	edx, sizeof.Thread
+		call	Os_VirtualFree
+		xor	eax, eax
+		mov	qword[threadPool.threadTable+8*rsi], rax
 
-		pop   rbx rdi rsi
+		pop	rbx rdi rsi
 		ret
 
 
 Thread_IdleLoop:
 	; in: rcx address of Thread struct
-	       push   rbx rsi rdi
+		push	rbx rsi rdi
 
 if VERSION_OS = 'L'
-		mov   rbx, rcx
+		mov	rbx, rcx
 else if VERSION_OS = 'W'
-		mov   rbx, rcx
+		mov	rbx, rcx
 else if VERSION_OS = 'X'
-		mov   rbx, rdi
+		mov	rbx, rdi
 end if
 
-		lea   rdi, [Thread_Think]
-		lea   rdx, [MainThread_Think]
-		mov   eax, dword[rbx+Thread.idx]
-	       test   eax, eax
-	      cmovz   rdi, rdx
-
-		jmp   .Lock
+		lea	rdi, [Thread_Think]
+		lea	rdx, [MainThread_Think]
+		mov	eax, dword[rbx+Thread.idx]
+		test	eax, eax
+		cmovz	rdi, rdx
+		jmp	.Lock
 .Loop:
-		mov   rcx, rbx
-	       call   rdi
+		mov	rcx, rbx
+		call	rdi
 .Lock:
-		lea   rcx, [rbx+Thread.mutex]
-	       call   Os_MutexLock
-		mov   byte[rbx+Thread.searching], 0
+		lea	rcx, [rbx+Thread.mutex]
+		call	Os_MutexLock
+		mov	byte[rbx+Thread.searching], 0
     .CheckExit:
-		mov   al, byte[rbx+Thread.exit]
-	       test   al, al
-		jnz   .Unlock
-		lea   rcx, [rbx+Thread.sleep2]
-	       call   Os_EventSignal
-		lea   rcx, [rbx+Thread.sleep1]
-		lea   rdx, [rbx+Thread.mutex]
-	       call   Os_EventWait
-		mov   al, byte[rbx+Thread.searching]
-	       test   al, al
-		 jz   .CheckExit
+		mov	al, byte[rbx+Thread.exit]
+		test	al, al
+		jnz	.Unlock
+		lea	rcx, [rbx+Thread.sleep2]
+		call	Os_EventSignal
+		lea	rcx, [rbx+Thread.sleep1]
+		lea	rdx, [rbx+Thread.mutex]
+		call	Os_EventWait
+		mov	al, byte[rbx+Thread.searching]
+		test	al, al
+		jz	.CheckExit
     .Unlock:
-		lea   rcx, [rbx+Thread.mutex]
-	       call   Os_MutexUnlock
+		lea	rcx, [rbx+Thread.mutex]
+		call	Os_MutexUnlock
 .CheckOut:
-		mov   al, byte[rbx+Thread.exit]
-	       test   al, al
-		 jz   .Loop
+		mov	al, byte[rbx+Thread.exit]
+		test	al, al
+		jz	.Loop
 if VERSION_OS = 'W'
-		xor   ecx, ecx
-	       call   Os_ExitThread
+		xor	ecx, ecx
+		call	Os_ExitThread
 else if VERSION_OS = 'X'
-		xor   edi, edi
-	       call   Os_ExitThread
+		xor	edi, edi
+		call	Os_ExitThread
 end if
-		pop   rdi rsi rbx
+		pop	rdi rsi rbx
 		ret
 
 

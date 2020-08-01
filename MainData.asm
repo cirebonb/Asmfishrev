@@ -18,6 +18,7 @@
 constd:
 ; ._0p03    dq 0.03
 ; ._1p0     dq 1.0
+ ._0p5   dq 0.5
  ._0p505   dq 0.505
  ._628p0   dq 628.0
  ._1p3     dq 1.3
@@ -26,10 +27,12 @@ constd:
  ._0p517   dq 0.517
  ._1p0     dq 1.0
  ._581p0   dq 581.0
+ ._1p2    dq 1.2
  ._1p25    dq 1.25
+ ._1p5    dq 1.5
+ ._1p95    dq 1.95
  ._3p22    dq 3.22
  ._48p0    dq 48.0
-
 
 if CPU_HAS_POPCNT = 0
  Mask55    dq 0x5555555555555555
@@ -109,11 +112,6 @@ if USE_WEAKNESS
     db 'option name UCI_LimitStrength type check default false'
     NewLineData
     db 'option name UCI_Elo type spin default 1000 min 0 max 3300'
-    NewLineData
-end if
-
-if USE_VARIETY
-    db 'option name Variety type spin default 0 min 0 max 100'
     NewLineData
 end if
 
@@ -257,10 +255,6 @@ end if
 if USE_WEAKNESS
 sz_uci_limitstrength  db 'uci_limitstrength',0
 sz_uci_elo            db 'uci_elo',0
-end if
-
-if USE_VARIETY
-sz_variety       db 'variety',0
 end if
 
 if USE_BOOK

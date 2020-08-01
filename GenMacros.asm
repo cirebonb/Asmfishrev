@@ -55,12 +55,12 @@ macro CastlingJmp Rights, JmpTrue, JmpFalse
   local ksq_loop
 		mov	rax, qword[rbp+Pos.typeBB+8*Pawn]
 		or	rax, qword[rbp+Pos.typeBB+8*King]
-		and	rax, r13
-		test	rax, qword[rbp-Thread.rootPos+Thread.castling_kingpawns+8*(Rights)]
+		and	rax, qword[rbp-Thread.rootPos+Thread.castling_kingpawns+8*(Rights)]
+		test	rax, r13
 		jnz	JmpFalse
 		mov	rax, qword[rbp+Pos.typeBB+8*Knight]
-		and	rax, r13
-		test	rax, qword[rbp-Thread.rootPos+Thread.castling_knights+8*(Rights)]
+		and	rax, qword[rbp-Thread.rootPos+Thread.castling_knights+8*(Rights)]
+		test	rax, r13
 		jnz	JmpFalse
 		movzx	r11d, byte[rbp-Thread.rootPos+Thread.castling_ksqpath+8*(Rights)]
 		movzx	eax, byte[rbp-Thread.rootPos+Thread.castling_rfrom+Rights]
@@ -145,7 +145,7 @@ macro generate_pawn_jmp Us, Type
         eS equ r10
         pawnsNotOn7 equ r11
         pawnsOn7 equ r12
-        enemies  equ r13
+	enemies  equ r13
   if Us = White
 	Them	 = Black
 	TRank8BB = Rank8BB
@@ -171,6 +171,7 @@ macro generate_pawn_jmp Us, Type
 	else if Type = EVASIONS
 		and	eS, r15
 	end if
+
 		generate_promotions	Type, Right, pawnsOn7, enemies
 		generate_promotions	Type, Left, pawnsOn7, enemies
 		generate_promotions	Type, Up, pawnsOn7, eS
@@ -249,10 +250,6 @@ macro generate_pawn_moves Us, Type
 		and	b2, b1
 		ShiftBB	Up, b2, rax
 		and	b2, eS
-;	if Type = EVASIONS
-;		and   b1, r15
-;		and   b2, r15
-;	end if
 	if Type = QUIET_CHECKS
 		movzx	edx, byte[rbx+State.ksq]
 		attacks_from_pawn	Them, rax, rdx
@@ -381,16 +378,15 @@ macro generate_moves  Us, Pt, Checks
 	jae	OuterDone
 	if	Checks = QUIET_CHECKS
 		if Pt <> Queen
-			mov	r12, qword[rbx+State.dcCandidates]	;used to rsi
+			mov	r12, qword[rbx+State.dcCandidates]
 		end if
 		mov	r10, qword[rbx+State.checkSq+8*Pt]
 		and	r10, r15	;r10 non zero
 	end if
 Outer:
 	if	Checks = QUIET_CHECKS
-;		mov	rsi, qword[rbx+State.dcCandidates]
 		if Pt <> Queen
-			bt	r12, rdx				;used to rsi
+			bt	r12, rdx
 			jc	InnerDone
 		end if
 		if Pt = Bishop
@@ -414,10 +410,6 @@ Outer:
 		RookAttacks	rsi, rdx, r14, rax
 	else if Pt = Queen
 		QueenAttacks	rsi, rdx, r14, rax, r12
-		;r12 was r9
-		;BishopAttacks	rsi, rdx, r14, rax
-		;RookAttacks	r9, rdx, r14, rax
-		;or	rsi, r9
 	end if
 	if	Checks = QUIET_CHECKS
 		and	rsi, r10
@@ -458,10 +450,9 @@ macro generate_jmp  Us, Type
     if Type = NON_EVASIONS
     CastlingJmp   (2*Us+0), CastlingOOGood, CastlingOODone
 CastlingOOGood:
-            mov   eax, dword[rbp-Thread.rootPos+Thread.castling_movgen+4*(2*Us+0)]
-            mov   dword[rdi], eax
-            ;lea   rdi, [rdi+sizeof.ExtMove]
-	    add		rdi, sizeof.ExtMove
+		mov	eax, dword[rbp-Thread.rootPos+Thread.castling_movgen+4*(2*Us+0)]
+		mov	dword[rdi], eax
+		add	rdi, sizeof.ExtMove
     else
       if Us = White
            call   CastleOOLegal_White
@@ -469,15 +460,19 @@ CastlingOOGood:
            call   CastleOOLegal_Black
       end if
       if Type eq QUIET_CHECKS
-            mov   ecx, dword[rbp-Thread.rootPos+Thread.castling_movgen+4*(2*Us+0)]
-            mov   dword[rdi], ecx
-           test   eax, eax
-            jnz   CheckOOQuiteCheck
+		jz	CastlingOODone
+CheckOOQuiteCheck:
+		mov	ecx, dword[rbp-Thread.rootPos+Thread.castling_movgen+4*(2*Us+0)]
+		mov	dword[rdi], ecx
+		call	Move_GivesCheck
+		and	eax, 8
+		add	rdi, rax
+		jmp	CastlingOODone
       else
-            and   eax, sizeof.ExtMove
-            mov   ecx, dword[rbp-Thread.rootPos+Thread.castling_movgen+4*(2*Us+0)]
-            mov   dword[rdi], ecx
-            add   rdi, rax
+		and	eax, sizeof.ExtMove
+		mov	ecx, dword[rbp-Thread.rootPos+Thread.castling_movgen+4*(2*Us+0)]
+		mov	dword[rdi], ecx
+		add	rdi, rax
       end if
     end if
 CastlingOODone:
@@ -499,37 +494,26 @@ CastlingOOOGood:
             jmp   .CastlingDone
     else
       if Us eq White
-           call   CastleOOOLegal_White
+		call	CastleOOOLegal_White
       else if Us eq Black
-           call   CastleOOOLegal_Black
+		call	CastleOOOLegal_Black
       end if
       if Type eq QUIET_CHECKS
-            mov   ecx, dword[rbp-Thread.rootPos+Thread.castling_movgen+4*(2*Us+1)]
-           test   eax, eax
-            mov   dword[rdi], ecx
-            jnz   CheckOOOQuiteCheck
-            jmp   .CastlingDone
-      else
-            and   eax, sizeof.ExtMove
-            mov   ecx, dword[rbp-Thread.rootPos+Thread.castling_movgen+4*(2*Us+1)]
-            mov   dword[rdi], ecx
-            add   rdi, rax
-            jmp   .CastlingDone
-      end if
-    end if
-    if Type = QUIET_CHECKS
-         calign   8
-CheckOOQuiteCheck:
-           call   Move_GivesCheck
-            and   eax, 8
-            add   rdi, rax
-            jmp   CastlingOODone
-         calign   8
+		jz	.CastlingDone
 CheckOOOQuiteCheck:
-           call   Move_GivesCheck
-            and   eax, 8
-            add   rdi, rax
-            jmp   .CastlingDone
+		mov	ecx, dword[rbp-Thread.rootPos+Thread.castling_movgen+4*(2*Us+1)]
+		mov	dword[rdi], ecx
+		call	Move_GivesCheck
+		and	eax, 8
+		add	rdi, rax
+		jmp	.CastlingDone
+      else
+		and	eax, sizeof.ExtMove
+		mov	ecx, dword[rbp-Thread.rootPos+Thread.castling_movgen+4*(2*Us+1)]
+		mov	dword[rdi], ecx
+		add	rdi, rax
+		jmp	.CastlingDone
+      end if
     end if
   end if
   generate_pawn_jmp   Us, Type
@@ -555,13 +539,10 @@ macro generate_all  Us, Type
 	end if
 	if Type <> QUIET_CHECKS & Type <> EVASIONS
 		movzx	rdx, byte[rbx+State.ourKsq]
-;		mov	rdx, qword[rbp+Pos.typeBB+8*King]
-;		and	rdx, qword[rbp+Pos.typeBB+8*Us]
-;		_tzcnt	rdx, rdx
 		mov	rcx, qword[KingAttacks+8*rdx]
-		shl	edx, 6
 		and	rcx, r15
 		jz	KingMovesDone
+		shl	edx, 6
 KingMoves:
 		bsf	rax, rcx		;_tzcnt	rax, rcx
 		or	eax, edx

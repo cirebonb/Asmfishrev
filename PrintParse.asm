@@ -24,9 +24,13 @@ PrintScore_Uci:
 	      stosd
 		sub   rdi, 1
 
+if	0
 		mov   eax, ecx
 		mov   ecx, 100
 	       imul   eax, ecx
+else
+		imul	eax, ecx, 100
+end if
 		mov   ecx, PawnValueEg
 .divideNPrint:
 		cdq
@@ -371,7 +375,7 @@ end virtual
 
 		lea   rdi, [.moveList]
 		mov   rbx, qword[rbp+Pos.state]
-	       call   SetCheckInfo
+;removed 	       call   SetCheckInfo
 	       call   Gen_Legal
 		xor   eax, eax
 	      stosd
@@ -407,9 +411,82 @@ end virtual
 		pop   rsi rdi rbx
 		ret
 
-
-
-
+KonverterSq	equ	('a'+8*'1')
+Konvertmove:
+		xor	eax, eax
+		movzx	ecx, byte[rsi]
+		movzx	edx, byte[rsi+1]
+		cmp	cl,'a'
+		jl	.EndDone
+		cmp	cl,'h'
+		jg	.EndDone
+		cmp	dl,'0'
+		jl	.EndDone
+		cmp	dl,'9'
+		jg	.EndDone
+		lea	ecx,[rcx+8*rdx-KonverterSq]
+		mov	r8d, ecx
+		shl	ecx, 6
+		movzx	r9d, byte[rsi+2]
+		movzx	edx, byte[rsi+3]
+;		cmp	r9l,'a'
+;		jl	.EndDone
+;		cmp	r9l,'h'
+;		jg	.EndDone
+		lea	r9d,[r9+8*rdx-KonverterSq]
+		or	ecx, r9d	;move normal
+		movzx	edx, byte[rsi+4]
+		add	rsi, 4
+		test	edx,edx
+		jz	.notProm
+		cmp	dl,' '
+		jle	.notProm
+		inc	rsi
+		mov	eax, (MOVE_TYPE_PROM+(Knight-Knight)) shl	12
+		cmp	dl,'n'
+		je	.Finalized
+		mov	eax, (MOVE_TYPE_PROM+(Bishop-Knight)) shl	12
+		cmp	dl,'b'
+		je	.Finalized
+		mov	eax, (MOVE_TYPE_PROM+(Rook-Knight)) shl	12
+		cmp	dl,'r'
+		je	.Finalized
+		mov	eax, (MOVE_TYPE_PROM+(Queen-Knight)) shl	12
+		cmp	dl,'q'
+		je	.Finalized
+		dec	rsi
+.notProm:
+		xor	eax, eax
+		movzx	edx, byte[rbp+Pos.board+r8]	; r10 = FROM PIECE
+		and	edx, 0111b
+		cmp	edx, King
+		jne	.epTest	;may ep
+		mov	edx, r8d
+		sub	edx, r9d
+		cmp	edx, 2
+		je	@f
+		cmp	edx,-2
+		jne	.Finalized
+@@:
+		mov	edx,FILE_H
+		cmp	r8d, r9d	;expected e1c1;to=a1;=e1g1;to=h1
+		cmovg	edx, eax
+		and	r9d, 56
+		or	r9d, edx
+		and	ecx, 63 shl 6
+		or	ecx, r9d
+		mov	eax,MOVE_TYPE_CASTLE shl 12
+		jmp	.Finalized
+.epTest:
+		cmp	edx, Pawn
+		jne	.Finalized
+		cmp	r9l, byte[rbx+State.epSquare]
+		jne	.Finalized
+		mov	eax,MOVE_TYPE_EPCAP shl 12
+.Finalized:
+		or	eax, ecx
+.EndDone:
+		ret
 
 
 ;;;;;;;;;;;; bitboard ;;;;;;;;;;;;;;;;;;;

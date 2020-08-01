@@ -32,8 +32,9 @@ Tablebase_Probe_AB:
 	      movzx   eax, byte[rbp+Pos.board+rax]
 		cmp   rsi, rdi
 		jae   .MovesDone
-		 or   al, byte[_CaptureOrPromotion_or+rdx]
-		and   al, byte[_CaptureOrPromotion_and+rdx]
+		or	al, dl	;_CaptureOrPromotion_or + _CaptureOrPromotion_and
+		sub	dx, 3
+		and	al, dh
 		 jz   .MoveLoop
 	       call   Move_GivesCheck
 ;		mov   ecx, dword[rsi+ExtMove.move]
@@ -111,8 +112,9 @@ Tablebase_Probe_WDL:
                 shr   edx, 14
 		cmp   rsi, rdi
 		jae   .MovesDone
-		 or   al, byte[_CaptureOrPromotion_or+rdx]
-		and   al, byte[_CaptureOrPromotion_and+rdx]
+		or	al, dl	;_CaptureOrPromotion_or + _CaptureOrPromotion_and
+		sub	dx, 3
+		and	al, dh
 		 jz   .MoveLoop
 	       call   Move_GivesCheck
 ;		mov   ecx, dword[rsi+ExtMove.move]
@@ -251,8 +253,9 @@ Tablebase_Probe_DTZ:
                 shr   edx, 14
 		cmp   rsi, rdi
 		jae   .MovesDone1
-		 or   al, byte[_CaptureOrPromotion_or+rdx]
-		and   al, byte[_CaptureOrPromotion_and+rdx]
+		or	al, dl	;_CaptureOrPromotion_or + _CaptureOrPromotion_and
+		sub	dx, 3
+		and	al, dh
 		jnz   .MoveLoop1
                 mov   eax, ecx
                 shr   eax, 6
@@ -327,8 +330,10 @@ Tablebase_Probe_DTZ:
                 shr   edx, 14
 		cmp   rsi, rdi
 		jae   .MovesDone2
-		 or   al, byte[_CaptureOrPromotion_or+rdx]
-		and   al, byte[_CaptureOrPromotion_and+rdx]
+		
+		or	al, dl	;_CaptureOrPromotion_or + _CaptureOrPromotion_and
+		sub	dx, 3
+		and	al, dh
 		jnz   .MoveLoop2
                 mov   eax, ecx
                 shr   eax, 6

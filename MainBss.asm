@@ -18,11 +18,6 @@ if USE_BOOK
   book          Book
 end if
 
-if USE_VARIETY
-              align   16
-  variety       Variety
-end if
-
               align   16
 options         Options
               align   16
@@ -31,8 +26,6 @@ time            Time
 signals         Signals
               align   16
 limits          Limits
-;              align   16
-;easyMoveMng     EasyMoveMng
               align   16
 mainHash        MainHash
               align   16
@@ -61,7 +54,13 @@ WhitePawnAttacks    rq 64     ; bitboards
 BlackPawnAttacks    rq 64     ; bitboards
 KnightAttacks       rq 64     ; bitboards
 KingAttacks         rq 64     ; bitboards
+TempBB:
+KingRingA		rq 64
 
+if USE_GAMECYCLE = 1
+cuckoo			rq 8192
+cuckooMove		rw 8192
+end if
 
 ;;;;;;;;;;;;;;;;;;; bitboards ;;;;;;;;;;;;;;;;;;;;;
               align   4096
@@ -73,7 +72,6 @@ DistanceRingBB  rq 8*64
 ForwardBB       rq 2*64
 PawnAttackSpan  rq 2*64
 PassedPawnMask  rq 2*64
-InFrontBB       rq 2*8
 AdjacentFilesBB rq 8
 FileBB          rq 8
 RankBB          rq 8
@@ -81,37 +79,22 @@ RankBB          rq 8
               align   64
 Scores_Pieces:	   rq 16*64
 Zobrist_Pieces:    rq 16*64
+
 Zobrist_Castling:  rq 16
 Zobrist_Ep:	   rq 8
 Zobrist_side:	   rq 1
 Zobrist_noPawns:   rq 1
 PieceValue_MG:	   rd 16
 PieceValue_EG:	   rd 16
-PieceSee_MG:	   rd 16
-
 IsNotPawnMasks:    rb 16
-IsNotPieceMasks:   rb 16
 IsPawnMasks:	   rb 16
-;
-if USE_GAMECYCLE <> 0
-              align   64
-cuckoo:			rq 8192
-cuckooMove:		rw 8192
-end if
-;
-
 ;;;;;;;;;;;;;;;;;;;; data for search ;;;;;;;;;;;;;;;;;;;;;;;
               align   4096
-Reductions	        rd 2*2*64*64
-FutilityMoveCounts      rd 16*2
-RazorMargin             rd 4
-_CaptureOrPromotion_or  rb 4
-_CaptureOrPromotion_and rb 4
-DrawValue	        rd 2    ; it is updated when threads start to think
-align   64
+Reductions	        rb 2*2*64*64
+FutilityMoveCounts      rb 16*2
 TableQsearch_NonPv	rq 4
 TableQsearch_Pv		rq 4
-
+PROMBB			rq 2
 ;;;;;;;;;;;;;;;;;;;; data for evaluation ;;;;;;;;;;;;;;;;;;;;
               align   64
 Connected      rd 2*2*3*8
@@ -119,14 +102,11 @@ MobilityBonus_Knight rd 16
 MobilityBonus_Bishop rd 16
 MobilityBonus_Rook   rd 16
 MobilityBonus_Queen  rd 32
-ShelterWeakness:
-ShelterWeakness_No         rd 8*8
-ShelterWeakness_Yes        rd 8*8
-StormDanger:
-StormDanger_NoFriendlyPawn rd 8*8
-StormDanger_Unblocked	   rd 8*8
-StormDanger_BlockedByPawn  rd 8*8
-StormDanger_BlockedByKing  rd 8*8
+
+ShelterStrength	rd 8*8
+UnblockedStorm	rd 8*8
+BlockedStorm	rd 8
+
 KingFlank                  rq 8
 Threat_Minor               rd 16
 Threat_Rook                rd 16
@@ -135,22 +115,35 @@ PassedFile                 rd 8
 DoMaterialEval_Data:
 .QuadraticOurs:            rd 8*6
 .QuadraticTheirs:          rd 8*6
-QueenMinorsImbalance       rd 16
+;QueenMinorsImbalance       rd 16
 RankFactor              rd 8		;added
 
 ContemptScore              rd 1
 Reserved                   rd 1 ; explicitly pad to 64-bit alignment. Can be used.
-rootKey			rq 1
+;rootKey			rq 1
 
 ;;;;;;;;;;;;;; data for endgames ;;;;;;;;;;;;;;
               align   64
-EndgameEval_Map            rb 2*ENDGAME_EVAL_MAX_INDEX*sizeof.EndgameMapEntry
-EndgameScale_Map           rb 2*ENDGAME_SCALE_MAX_INDEX*sizeof.EndgameMapEntry
-EndgameEval_FxnTable       rd ENDGAME_EVAL_MAX_INDEX
-EndgameScale_FxnTable      rd ENDGAME_SCALE_MAX_INDEX
+
+	TableMaterialM		rq	16*64
+	TablePromMatM		rq	2*2*16	;twice bigger
+	
+	CountNormalM		rd	8*16
+	POC		rd 16
+	EndgameEval_FxnTable       rd 10+1+1 ;+1 to give an even
+	EndgameScale_FxnTable      rd 13+1
+	VoidPawn		rb sizeof.PawnEntry
+if	TRACE = 1 
+Rootrbx	rq 1
+end if
+if QueenThreats > 0
+Evade		rq 64*64
+end if
+		align 64
+
 KPKEndgameTable            rq 48*64
 PushToEdges                rb 64
-PushToCorners              rb 64
+PushToCorners              rw	64	;rb 64
 PushClose                  rb 8
 PushAway                   rb 8
 
@@ -227,3 +220,6 @@ align 16
 _ZL8TB_mutex:
 	rq    6
 end if
+		align 64
+
+	materialTableExM	rb	MaterialTableSize*sizeof.MaterialEntryEx

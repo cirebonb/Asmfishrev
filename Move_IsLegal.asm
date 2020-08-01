@@ -1,6 +1,3 @@
-;	     calign   16
-;Move_IsLegalr8r9:
-
 	     calign   16
 Move_IsLegal:
 	; in: rbp  address of Pos
@@ -26,7 +23,7 @@ Move_IsLegal:
 		mov	rax, qword[rbx+State.pinned]
 		bt	rax, r8
 		jc	.CheckPinned
-		or	eax, -1
+		or	eax, -1	;0x10001
 		ret
 	     calign   8
 .CheckPinned:
@@ -39,13 +36,12 @@ Move_IsLegal:
 		ret
 	     calign   8
 .KingMove:
-	; if they have an attacker to king's destination square, then move is illegal , lets use r11 & r15 to replace r8 & r9
-		;king bb not used
+	; if they have an attacker to king's destination square, then move is illegal
+
 		mov	eax, dword[rbp+Pos.sideToMove]
 		mov	r10d, eax
 		xor	r10d, 1
 		mov	r10, qword[rbp+Pos.typeBB+8*r10]
-		mov	rdx, qword[rbp+Pos.typeBB+8*rax]
 	; pawn
 		shl	eax, 6+3
 		mov	rax, qword[PawnAttacks+rax+8*r9]
@@ -63,7 +59,7 @@ Move_IsLegal:
 	       test	rax, r10
 		jnz	.Illegal
 
-		or	rdx, r10
+		mov	rdx, qword[rbx+State.Occupied]	; all pieces
 
 	; bishop + queen
 		BishopAttacks	rax, r9, rdx, r11

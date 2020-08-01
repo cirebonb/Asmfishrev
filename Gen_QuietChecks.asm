@@ -2,12 +2,12 @@
 ; underpromotions that give check. Returns a pointer to the end of the move list.
 ; generate non Incheck Condition
 	     calign  16
-Gen_QuietChecks:		;r15 r13 -clobered-
+Gen_QuietChecks:		;r15 r14 r13 -clobered-
 	; in: rbp address of position
 	;     rbx address of state
 	; io: rdi address to write moves
 
-		push	rsi r12 r14 
+		push	rsi r12
 		mov	r15, qword[rbx+State.Occupied]
 		mov	r14, qword[rbx+State.dcCandidates]
 		test	r14, r14
@@ -19,17 +19,6 @@ Gen_QuietChecks:		;r15 r13 -clobered-
 		_blsr	r14, r14, rax
 		movzx	edx, byte[rbp+Pos.board+r13]
 		and	edx, 7
-;		cmp	edx, Knight
-;		je	Gen_QuietChecks_Jmp.AttacksFromKnight
-;		cmp	edx, Bishop
-;		je	Gen_QuietChecks_Jmp.AttacksFromBishop
-;		cmp	edx, Rook
-;		je	Gen_QuietChecks_Jmp.AttacksFromRook
-;		cmp	edx, King
-;		je	Gen_QuietChecks_Jmp.AttacksFromKing
-;		jmp	.PopSkip
-;		cmp	edx, Pawn
-;		je	Gen_QuietChecks_Jmp.AttacksFromKnight
 		jmp	qword[Gen_QuietChecks_Jmp.JmpTable+8*rdx]
 ;======================================================
 	     calign   8
@@ -57,14 +46,14 @@ Gen_QuietChecks:		;r15 r13 -clobered-
 ;	     calign   8
 ;Gen_QuietChecks_White:
 		generate_all	White, QUIET_CHECKS
-		pop	r14 r12 rsi
+		pop	r12 rsi
 		ret
 		generate_jmp   White, QUIET_CHECKS
 
 	     calign   8
 Gen_QuietChecks_Black:
 		generate_all   Black, QUIET_CHECKS
-		pop	r14 r12 rsi
+		pop	r12 rsi
 		ret
 		generate_jmp   Black, QUIET_CHECKS
 
@@ -73,42 +62,28 @@ Gen_QuietChecks_Jmp:
 .AttacksFromKnight:
 		mov	rsi, qword[KnightAttacks+8*r13]
 		and	rsi, r12
-;		_andn	rsi, r15, rsi
 		jmp	Gen_QuietChecks.AttacksFromRet
 
 	     calign   8
 .AttacksFromKing:
-		mov	rsi, qword[KingAttacks+8*r13]
-		and	rsi, r12
-;		_andn	rsi, r15, rsi
-		movzx	eax, byte [rbx+State.ksq]
-		shl	eax, 6
-		mov	rax, qword[LineBB+rax+8*r13]
-		not	rax
-		and	rsi, rax
-;		movzx	ecx, byte [rbx+State.ksq]
-;		mov	rax, qword[RookAttacksPDEP+8*rcx]
-;		or	rax, qword[BishopAttacksPDEP+8*rcx]
-;		not	rax
-;		and	rsi, rax
-
-;		_andn	rsi, rax, rsi
+		movzx	esi, byte [rbx+State.ksq]
+		shl	esi, 6
+		mov	rsi, qword[LineBB+rsi+8*r13]
+		mov	rax, qword[KingAttacks+8*r13]
+		and	rax, r12
+		_andn	rsi, rsi, rax		;not	rsi	;and	rsi, rax
 		jmp	Gen_QuietChecks.AttacksFromRet
 
 	     calign   8
 .AttacksFromBishop:
 		BishopAttacks	rsi, r13, r15, rax
 		and	rsi, r12
-;		_andn	rsi, r15, rsi
 		jmp	Gen_QuietChecks.AttacksFromRet
-
 	     calign   8
 .AttacksFromRook:
 		RookAttacks	rsi, r13, r15, rax
 		and	rsi, r12
-;		_andn	rsi, r15, rsi
 		jmp	Gen_QuietChecks.AttacksFromRet
-
 ;	     calign   8
 ;.AttacksFromQueen:
 		;QueenAttacks	rsi, r13, r15, rax, rdx

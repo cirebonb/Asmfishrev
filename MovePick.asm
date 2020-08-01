@@ -11,15 +11,13 @@ MovePick_MAIN_SEARCH:
 
 	     calign   16, MovePick_GOOD_CAPTURES
 MovePick_CAPTURES_GEN:
-		mov	rdi, qword[rbx-1*sizeof.State+State.endMoves]
-		mov	r14, rdi
 		or	r15, -1
 		call	Gen_Captures
-		mov	r15, rdi
+		mov	r14, qword[rbx-1*sizeof.State+State.endMoves]
 		mov	qword[rbx+State.endBadCaptures], r14
-		mov	qword[rbx+State.endMoves], r15			;*******
-		mov	r13, r14
-      ScoreCaptures	r13, rdi, WhileDone1
+		mov	qword[rbx+State.endMoves], rdi			;*******
+      ScoreCaptures	r14, r13, rdi, WhileDone1
+		mov	r15, rdi
 		lea	rax, [MovePick_GOOD_CAPTURES]
 		mov	qword[rbx+State.stage], rax
 		jmp	@1f
@@ -53,7 +51,7 @@ MovePick_GOOD_CAPTURES:
     WhileDone1:
 		mov	ecx, dword[rbx+State.mpKillers+4*0]
 		test	ecx, ecx
-		jz	MovePick_KILLERS
+		jz	MovePick_KILLERS2	;changed
 		cmp	ecx, dword[rbx+State.ttMove]
 		je	MovePick_KILLERS
 		cmp	ecx, MOVE_TYPE_EPCAP shl 12
@@ -95,7 +93,7 @@ MovePick_KILLERS:
 		cmp	ecx, MOVE_TYPE_CASTLE shl 12
 		jae	.check
 MovePick_KILLERS2:
-		mov	ecx, dword[rbx+State.countermove]
+		movzx	ecx, word[rbx+State.countermove]
 		test	ecx, ecx
 		jz	MovePick_QUIET_GEN
 		cmp	ecx, dword[rbx+State.ttMove]
@@ -116,21 +114,21 @@ MovePick_KILLERS2:
 		jz	MovePick_QUIET_GEN
 		lea	rax, [MovePick_QUIET_GEN]
 		mov	qword[rbx+State.stage], rax
+		mov	word[rbx+State.countermove], cx
 		ret	;	flags !zero
 .special:
 		cmp	ecx, MOVE_TYPE_CASTLE shl 12
 		jae	.check
 
 MovePick_QUIET_GEN:
-		cmp	byte[rbx+State.skipQuiets],0	;test	esi, esi
+		cmp	byte[rbx+State.moveCountPruning],0	;test	esi, esi
 		jnz	Before_MovePick_BAD_CAPTURES
 		mov	rdi, qword[rbx+State.endBadCaptures]
 		mov	r14, rdi
 		call	Gen_Quiets
-		mov	r13, r14
-		mov	r15, rdi
-	ScoreQuiets	r13, rdi, Before_MovePick_BAD_CAPTURES
+	ScoreQuiets	r14, r13, rdi, Before_MovePick_BAD_CAPTURES
         ; partial insertion sort
+		mov	r15, rdi
 		lea	r10, [r14+sizeof.ExtMove]
 		cmp	r10, r15
 		je	.SortDone
@@ -171,7 +169,7 @@ MovePick_QUIET_GEN:
 		jmp	@1f
 
 MovePick_QUIETS:
-		cmp	byte[rbx+State.skipQuiets],0 
+		cmp	byte[rbx+State.moveCountPruning],0 
 		jnz	.WhileDone
 		mov	r14, qword[rbx+State.cur]
 		mov	r15, qword[rbx+State.endMoves]
@@ -186,7 +184,7 @@ MovePick_QUIETS:
 		je	@1b
 		cmp	ecx, dword[rbx + State.mpKillers + 4*1]
 		je	@1b
-		cmp	ecx, dword[rbx + State.countermove]
+		cmp	cx, word[rbx + State.countermove]
 		je	@1b
 		mov	qword[rbx+State.cur], r14			;*******0
 		ret	;	flags !zero
@@ -232,11 +230,17 @@ MovePick_QSEARCH_WITHOUT_CHECKS:
 		calign	8
 MovePick_ALL_EVASIONS:
 		mov	rdi, qword[rbx-1*sizeof.State+State.endMoves]
-		mov	r14, rdi
 	       call	Gen_Evasions
+		mov	r14, qword[rbx-1*sizeof.State+State.endMoves]
+      ScoreEvasions	r14, r13, rdi, _MATE		; rdi clobered
 		mov	r15, rdi
-		mov	r13, r14
-      ScoreEvasions	r13, r15, _MATE		; rdi clobered
+		mov	rax, rdi
+		sub	rax, r14
+		shr	rax, 5
+		cmp	eax, 1
+		jne	@1f
+		or	byte[rbx+State.pvhit], JUMP_IMM_8
+		@1:
 		lea	rax, [MovePick_REMAINING]
 		mov	qword[rbx+State.stage], rax
 		mov	qword[rbx+State.endMoves], r15			;*******
@@ -246,19 +250,17 @@ MovePick_ALL_EVASIONS:
 	     calign   16, MovePick_REMAINING
 MovePick_QCAPTURES_NO_CHECKS_GEN:
 		mov	rcx, qword[rbx + State.endBadCaptures]			; .depthQs + .recaptureSquare
-		mov	rdi, qword[rbx-1*sizeof.State+State.endMoves]
-		mov	r14, rdi
 		or	r15, -1
 		cmp	cx, DEPTH_QS_RECAPTURES
 		jg	.RecaptureInclude
-		not	r15
 		shr	rcx, 32
-		bts	r15, rcx
+		mov	r15d, 1
+		shl	r15, cl
 .RecaptureInclude:
 	       call	Gen_Captures
+		mov	r14, qword[rbx-1*sizeof.State+State.endMoves]
+	ScoreCaptures	r14, r13, rdi, WhileDone2
 		mov	r15, rdi
-		mov	r13, r14
-      ScoreCaptures	r13, rdi, WhileDone2
 		lea	rax, [MovePick_REMAINING]
 		mov	qword[rbx+State.stage], rax
 		mov	qword[rbx+State.endMoves], r15			;*******
@@ -288,13 +290,11 @@ MovePick_QSEARCH_WITH_CHECKS:
 		ret
 		calign	8, MovePick_QCAPTURES_CHECKS
 MovePick_QCAPTURES_CHECKS_GEN:
-		mov	rdi, qword[rbx-1*sizeof.State+State.endMoves]
-		mov	r14, rdi
 		or	r15, -1
 		call	Gen_Captures
 		mov	r15, rdi
-		mov	r13, r14
-      ScoreCaptures	r13, rdi, WhileDone3
+		mov	r14, qword[rbx-1*sizeof.State+State.endMoves]
+	ScoreCaptures	r14, r13, rdi, WhileDone3
 		lea	rax, [MovePick_QCAPTURES_CHECKS]
 		mov	qword[rbx+State.stage], rax
 		mov	qword[rbx+State.endMoves], r15			;*******
@@ -315,8 +315,8 @@ MovePick_QCAPTURES_CHECKS:
 		calign	16, MovePick_CHECKS
     WhileDone3:
 		mov	rdi, qword[rbx-1*sizeof.State+State.endMoves]	;reset offset StartMoves
-		mov	r14, rdi
-		call	Gen_QuietChecks
+		call	Gen_QuietChecks	;r13 r14 r15 cloberred
+		mov	r14, qword[rbx-1*sizeof.State+State.endMoves]	;reset offset StartMoves
 		mov	r15, rdi
 		lea	rax, [MovePick_CHECKS]
 		mov	qword[rbx+State.stage], rax
@@ -339,24 +339,32 @@ MovePick_CHECKS:
 	     calign   16
 MovePick_PROBCUTINIT:
 		; initialize movepick
-		; r13d	= .beta r12 = .alpha
-		; ecx	= .ttMove
-		;lea	edi, [r12+1+200]		;original
+		; r12 = .alpha
 		movzx	eax, byte[rbx+State.improving]	;1
 		neg	eax				;2
 		and	eax, -48
-		lea	edi, [r12+1+216+rax]
-
-		mov	eax, VALUE_INFINITE
+		;lea	edi, [r12+1+216+rax]
+		lea	edi, [r12+1+216]
+		add	edi, eax
+	if	0
+		mov	eax, VALUE_INFINITE		;absurd ;)
+	else
+		movzx	eax, byte[rbx+State.ply]
+		neg	eax
+		add	eax, VALUE_MATE-1
+	end if
 		cmp	edi, eax
 		cmovg	edi, eax
 		neg	edi
-		mov	dword[rbx+State.endBadCaptures], edi		; .rbeta
+		mov	dword[rbx+State.mpKillers], edi		; .rbeta
 		xor	eax, eax
 		neg	edi
-		sub	edi, dword[rbx+State.staticEval]
-		mov	dword[rbx+State.endBadCaptures+4], edi		; .threshold
-		mov	dword[rbx+State.moveCount], eax
+		movsx	edx, word[rbx+State.ltte+MainHashEntry.eval_]
+		sub	edi, edx
+		cmp	edi, QueenValueMg
+		jg	.cancelProbcut		;in case in nullmove found mated
+		mov	dword[rbx+State.mpKillers+4], edi		; .threshold
+		mov	dword[rbx+State.moveCount], 0xffff00
 		movzx	ecx, word[rbx+State.ltte+MainHashEntry.move]	;.ttMove
 		test	ecx, ecx
 		jz	.9NoTTMove		;Zero = 1
@@ -378,51 +386,83 @@ MovePick_PROBCUTINIT:
 		jz	.9NoTTMove		;Zero = 1
 		mov	eax, ecx
 .9NoTTMove:
-;		mov	r13d, eax
-		mov	r13d, 3
+	; r13d	= .cutNode	transform to probCutCountMax
+	movsx	edx, byte[rsp+1*8]	;.cutNode
+	mov	r13d, edx
+	not	r13d
+	and	dl, 2
+	add	dl, 2
+	mov	r13l, dl
 		mov	dword[rbx+State.ttMove], eax
 		test	eax, eax
 		jz	MovePick_PROBCUT_GEN
 		call	Move_IsLegal
 		jz	MovePick_PROBCUT_GEN	;uses flags
-		mov	edi, dword[rbx+State.endBadCaptures]		; .rbeta
+		mov	edi, dword[rbx+State.mpKillers]		; .rbeta
 		mov	r15, qword[rbx-1*sizeof.State+State.endMoves]
 		lea	rax, [MovePick_PROBCUT_GEN]
 		mov	qword[rbx+State.stage], rax
 		mov	qword[rbx+State.endMoves], r15
-		dec	r13d
+	dec	r13l
 		;	ecx	= State.ttMove;	flags !zero
 		ret
-	     calign   16, MovePick_PROBCUT
+		calign	8
+.cancelProbcut:
+		xor	eax, eax
+		ret
+		calign   8
 MovePick_PROBCUT_GEN:
-		mov	rdi, qword[rbx-1*sizeof.State+State.endMoves]
-		mov	r14, rdi
-		or	r15, -1
-	       push	r13
+		mov	edi, dword[rbp+Pos.sideToMove]
+		xor	edi, 1
+		mov	r15, qword[rbx+State.Occupied]
+		xor	r15, qword[rbp+Pos.typeBB+8*King]
+		mov	r10, qword[rbp+Pos.typeBB+8*rdi]
+		mov	edx, dword[rbx+State.mpKillers+4]						; .threshold
+		cmp	edx, PawnValueMg
+		jl	@2f
+		mov	rax, qword[rbp+Pos.typeBB+8*Pawn]
+		xor	r15, rax
+		cmp	edx, KnightValueMg
+		jl	@2f
+		xor	r15, qword[rbp+Pos.typeBB+8*Knight]
+		cmp	edx, BishopValueMg
+		jl	@2f
+		xor	r15, qword[rbp+Pos.typeBB+8*Bishop]
+		cmp	edx, RookValueMg
+		jl	@2f
+		xor	r15, qword[rbp+Pos.typeBB+8*Rook]
+	@2:
+		and	r15, r10
+		jnz	MovePick_PROBCUT_GENback
+		ret
+		calign   8
+MovePick_PROBCUT_GENback:
+	push	r13
 	       call	Gen_Captures			;esi secure
-		pop	r13
+	pop	r13
 		mov	r15, rdi
-		mov	r11, r14
-      ScoreCaptures	r11, rdi, WhileDone4
-		mov	edi, dword[rbx+State.endBadCaptures]		; .rbeta
+		mov	r14, qword[rbx-1*sizeof.State+State.endMoves]
+	ScoreCaptures	r14, r11, rdi, WhileDone4
+		mov	edi, dword[rbx+State.mpKillers]		; .rbeta
 		lea	rax, [MovePick_PROBCUT]
 		mov	qword[rbx+State.stage], rax
 		mov	qword[rbx+State.endMoves], r15
 		jmp	@1f	;MovePick_PROBCUT_2
 	WhileDone4:
 		ret
+		calign   8
 MovePick_PROBCUT:
-		dec	r13d
+	dec	r13l
 		jz	WhileDone4
 		mov	r14, qword[rbx+State.cur]
 		mov	r15, qword[rbx+State.endMoves]
-	   @1:
+	@1:
 		cmp	r14, r15
 		je	WhileDone4
 	   PickBest   r14, r11, r15
 		cmp	ecx, dword[rbx+State.ttMove]
 		je	@1b
-		mov	edx, dword[rbx+State.endBadCaptures+4]						; .threshold
+		mov	edx, dword[rbx+State.mpKillers+4]						; .threshold
 		call	SeeTestGe
 		test	eax, eax
 		jz	@1b

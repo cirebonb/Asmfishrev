@@ -9,7 +9,8 @@ MainHash_Create:
            call  Os_VirtualAlloc
             xor  edx, edx
             shr  rsi, 5	; cluster size is 32 bytes
-            sub  rsi, 1
+            dec	rsi	;sub  rsi, 1
+	    shl	rsi,5
             mov  qword[rbp+MainHash.table], rax
             mov  qword[rbp+MainHash.mask], rsi
             mov  qword[rbp+MainHash.lpSize], rdx
@@ -59,7 +60,8 @@ MainHash_ReadOptions:
             xor  edx, edx
 .Done:
 	    shr  rsi, 5	; cluster size is 32 bytes
-            sub  rsi, 1
+            dec	rsi	;sub  rsi, 1
+	    shl	rsi, 5
             mov  qword[rbp+MainHash.table], rax
             mov  qword[rbp+MainHash.mask], rsi
             mov  qword[rbp+MainHash.lpSize], rdx
@@ -116,7 +118,7 @@ MainHash_HashFull:
 iterate i, 0, 1, 2
           movzx  ecx, byte[r8 + 8*i + MainHashEntry.genBound]
             xor  ecx, edx
-            and  ecx, 0xFFFFFFFC
+            and  ecx, 0xFFFFFFF8	;C
             cmp  ecx, 1
             adc  eax, 0
 end iterate

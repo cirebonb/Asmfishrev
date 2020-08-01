@@ -59,9 +59,15 @@ end virtual
             _vmovsd   qword[.worstscore], xmm0
 
     ; if difference falls out side of (1.8*target, 2.2*target), adjust
-                lea   rcx, [rbp+Pos.rootMovesVec]
-               call   RootMovesVec_Size
-                xor   edx, edx
+		;RootMovesVec_Size
+;		mov	eax,dword[rbp+Pos.rootMovesSize]
+		mov   rax, qword[rbp+Pos.rootMovesVec+RootMovesVec.ender]
+		sub   rax, qword[rbp+Pos.rootMovesVec+RootMovesVec.table]
+		mov   ecx, sizeof.RootMove
+		xor   edx, edx
+		div   ecx
+
+		xor   edx, edx
             _vmovsd   xmm0, qword[.bestscore]
             _vmovsd   xmm2, qword[weakness.targetLoss]
             _vsubsd   xmm0, xmm0, qword[.worstscore]

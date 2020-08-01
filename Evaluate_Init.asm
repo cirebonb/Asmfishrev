@@ -20,13 +20,17 @@ Evaluate_Init:
 		mov   ecx, 28
 	  rep movsd
 
-		lea   rsi, [.ShelterWeakness]
-		lea   rdi, [ShelterWeakness]
-		mov   ecx, 2*8*8
-	  rep movsd
-		lea   rsi, [.StormDanger]
-		lea   rdi, [StormDanger]
+		lea   rsi, [.ShelterStrength]
+		lea   rdi, [ShelterStrength]
 		mov   ecx, 4*8*8
+	  rep movsd
+		lea   rsi, [.UnblockedStorm]
+		lea   rdi, [UnblockedStorm]
+		mov   ecx, 4*8*8
+	  rep movsd
+		lea   rsi, [.BlockedStorm]
+		lea   rdi, [BlockedStorm]
+		mov   ecx, 8
 	  rep movsd
 
 		lea   rdi, [Threat_Minor]
@@ -66,23 +70,28 @@ Evaluate_Init:
 	    xor ecx,ecx
 		mov dword[ContemptScore], ecx  ; akin to StockFish's: "Score Eval::Contempt = SCORE_ZERO;"
 
-		lea   rdi, [KingFlank]
-		mov   rax, (FileABB or FileBBB or FileCBB or FileDBB)
+;  constexpr Bitboard KingFlank[FILE_NB] = { QueenSide ^ FileDBB, QueenSide, QueenSide, CenterFiles, CenterFiles, KingSide, KingSide, KingSide ^ FileEBB };
+
+		lea	rdi, [KingFlank]
+		mov	rax, QueenSide xor FileDBB
+	      stosq
+		mov	rax, QueenSide
 	      stosq
 	      stosq
-	      stosq
-		shl   rax, 2
-	      stosq
-	      stosq
-		shl   rax, 2
+		mov	rax, CenterFiles
 	      stosq
 	      stosq
+		mov	rax, KingSide
+	      stosq
+	      stosq
+		mov	rcx, FileEBB
+		xor	rax, rcx
 	      stosq
 
-                lea   rsi, [.QueenMinorsImbalance]
-                lea   rdi, [QueenMinorsImbalance]
-                mov   ecx, 16
-          rep movsd
+;                lea   rsi, [.QueenMinorsImbalance]
+;                lea   rdi, [QueenMinorsImbalance]
+;                mov   ecx, 16
+;          rep movsd
 
 		pop   rdi rsi rbx
 		ret
@@ -179,63 +188,43 @@ Evaluate_Init:
 
 ; ShelterWeakness and StormDanger are twice as big
 ; to avoid an anoying min(f,FILE_H-f) in ShelterStorm
-.ShelterWeakness:
-.ShelterWeakness_No:
- dd  97,  17,   9,  44,  84,  87,  99, 0
- dd 106,   6,  33,  86,  87, 104, 112, 0
- dd 101,   2,  65,  98,  58,  89, 115, 0
- dd  73,   7,  54,  73,  84,  83, 111, 0
- dd  73,   7,  54,  73,  84,  83, 111, 0
- dd 101,   2,  65,  98,  58,  89, 115, 0
- dd 106,   6,  33,  86,  87, 104, 112, 0
- dd  97,  17,   9,  44,  84,  87,  99, 0
+.ShelterStrength:
+		dd -6, 81, 93, 58, 39, 18,  25, 0
+		dd -43, 61, 35, -49, -29, -11, -63, 0
+		dd -10, 75, 23, -2, 32,  3, -45, 0
+		dd -39, -13, -29, -52, -48, -67, -166, 0
 
-.ShelterWeakness_Yes:
- dd 104,  20,   6,  27,  86,  93,  82, 0
- dd 123,   9,  34,  96, 112,  88,  75, 0
- dd 120,  25,  65,  91,  66,  78, 117, 0
- dd  81,   2,  47,  63,  94,  93, 104, 0
- dd  81,   2,  47,  63,  94,  93, 104, 0
- dd 120,  25,  65,  91,  66,  78, 117, 0
- dd 123,   9,  34,  96, 112,  88,  75, 0
- dd 104,  20,   6,  27,  86,  93,  82, 0
+		dd -39, -13, -29, -52, -48, -67, -166, 0
+		dd -10, 75, 23, -2, 32,  3, -45, 0
+		dd -43, 61, 35, -49, -29, -11, -63, 0
+		dd -6, 81, 93, 58, 39, 18,  25, 0
 
-.StormDanger:
- dd 4,	 73, 132, 46, 31 ,  0,0,0
- dd 1,	 64, 143, 26, 13 ,  0,0,0
- dd 1,	 47, 110, 44, 24 ,  0,0,0
- dd 0,	 72, 127, 50, 31 ,  0,0,0
- dd 0,	 72, 127, 50, 31 ,  0,0,0
- dd 1,	 47, 110, 44, 24 ,  0,0,0
- dd 1,	 64, 143, 26, 13 ,  0,0,0
- dd 4,	 73, 132, 46, 31 ,  0,0,0
 
- dd 22,  45,  104, 62,	6 , 0,0,0
- dd 31,  30,   99, 39, 19 , 0,0,0
- dd 23,  29,   96, 41, 15 , 0,0,0
- dd 21,  23,  116, 41, 15 , 0,0,0
- dd 21,  23,  116, 41, 15 , 0,0,0
- dd 23,  29,   96, 41, 15 , 0,0,0
- dd 31,  30,   99, 39, 19 , 0,0,0
- dd 22,  45,  104, 62,	6 , 0,0,0
 
- dd  0,  0,   79, 23,  1 , 0,0,0
- dd  0,  0,  148, 27,  2 , 0,0,0
- dd  0,  0,  161, 16,  1 , 0,0,0
- dd  0,  0,  171, 22, 15 , 0,0,0
- dd  0,  0,  171, 22, 15 , 0,0,0
- dd  0,  0,  161, 16,  1 , 0,0,0
- dd  0,  0,  148, 27,  2 , 0,0,0
- dd  0,  0,   79, 23,  1 , 0,0,0
+.UnblockedStorm:
+		dd 89, 107, 123, 93, 57, 45, 51, 0
+		dd 44, -18, 123, 46, 39, -7, 23, 0
+		dd  4, 52, 162, 37, 7, -14, -2, 0
+		dd -10, -14, 90, 15, 2, -7, -16,  0
 
- dd  0,  -290, -274, 57, 41 , 0,0,0
- dd  0,    60,	144, 39, 13 , 0,0,0
- dd  0,    65,	141, 41, 34 , 0,0,0
- dd  0,    53,	127, 56, 14 , 0,0,0
- dd  0,    53,	127, 56, 14 , 0,0,0
- dd  0,    65,	141, 41, 34 , 0,0,0
- dd  0,    60,	144, 39, 13 , 0,0,0
- dd  0,  -290, -274, 57, 41 , 0,0,0
+		dd -10, -14, 90, 15, 2, -7, -16,  0
+		dd  4, 52, 162, 37, 7, -14, -2, 0
+		dd 44, -18, 123, 46, 39, -7, 23, 0
+		dd 89, 107, 123, 93, 57, 45, 51, 0
+
+
+.BlockedStorm:
+		dd 0, 0, 66, 6, 5, 1, 15,  0
+
+
+;  constexpr Score ThreatByMinor[PIECE_TYPE_NB] = {
+;    S(0, 0), S(0, 31), S(39, 42), S(57, 44), S(68, 112), S(62, 120)
+;  };
+;
+;  constexpr Score ThreatByRook[PIECE_TYPE_NB] = {
+;    S(0, 0), S(0, 24), S(38, 71), S(38, 61), S(0, 38), S(51, 38)
+;  };
+
 
 
 .Threat_Minor:
@@ -245,7 +234,7 @@ Evaluate_Init:
  dd (39 shl 16) + (42)		;(45 shl 16) + (43)
  dd (57 shl 16) + (44)		;(46 shl 16) + (47)
  dd (68 shl 16) + (112)		;(72 shl 16) + (107)
- dd (47 shl 16) + (120)		;(48 shl 16) + (118)
+ dd (62 shl 16) + (120)		;(48 shl 16) + (118)
  dd (0 shl 16) + (0)
 
 .Threat_Rook:
@@ -255,12 +244,13 @@ Evaluate_Init:
  dd (38 shl 16) + (71)		;(40 shl 16) + (62)
  dd (38 shl 16) + (61)		;(40 shl 16) + (59)
  dd (0 shl 16) + (38)		;(0 shl 16) + (34)
- dd (36 shl 16) + (38)		;(35 shl 16) + (48)
+ dd (51 shl 16) + (38)		;(35 shl 16) + (48)
  dd (0 shl 16) + (0)
 
 
 
 .PassedFile:
+if 1
  dd (11 shl 16) + (14)		;(9 shl 16) + (10)
  dd (0 shl 16) + (-5)		;(2 shl 16) + (10)
  dd (-2 shl 16) + (-8)		;(1 shl 16) + (-8)
@@ -269,9 +259,19 @@ Evaluate_Init:
  dd (-2 shl 16) + (-8)		;(1 shl 16) + (-8)
  dd (0 shl 16) + (-5)		;(2 shl 16) + (10)
  dd (11 shl 16) + (14)		;(9 shl 16) + (10)
-
+else
+	dd	( -1 shl 16) + (7)
+	dd	( 0 shl 16) + (9)
+	dd	(-9 shl 16) + (-8)
+	dd	(-30 shl 16) + (-14)
+	dd	(-30 shl 16) + (-14)
+	dd	(-9 shl 16) + (-8)
+	dd	( 0 shl 16) + (9)
+	dd	( -1 shl 16) + (7)
+end if
 
 .PassedRank:
+if 1
  dd 0
  dd (4 shl 16) + (17)		;(5 shl 16) + (7)
  dd (7 shl 16) + (20)		;(5 shl 16) + (14)
@@ -280,13 +280,20 @@ Evaluate_Init:
  dd (165 shl 16) + (171)	;(166 shl 16) + (166)
  dd (279 shl 16) + (252)	;(252 shl 16) + (252)
  dd 0
+else
+	dd	(0)
+	dd	(5 shl 16) + (18)
+	dd	(12 shl 16) + (23)
+	dd	(10 shl 16) + (31)
+	dd	(57 shl 16) + (62)
+	dd	(163 shl 16) + (167)
+	dd	(271 shl 16) + (250)
+	dd	(0)
+end if
 
-
-
-
-.QueenMinorsImbalance:
-        dd 31, -8, -15, -25, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-
+;.QueenMinorsImbalance:
+;        dd 31, -8, -15, -25, -5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+if 1
 .QuadraticOurs:
 	dd 0, 1667,    0,    0,    0,	 0,    0,    0
 	dd 0,	40,    0,    0,    0,	 0,    0,    0
@@ -301,3 +308,20 @@ Evaluate_Init:
 	dd 0,	59,   65,   42,    0,	 0,    0,    0
 	dd 0,	46,   39,   24,  -24,	 0,    0,    0
 	dd 0,  101,  100,  -37,  141,  268,    0,    0
+else
+.QuadraticOurs:
+	dd 0, 1438,    0,    0,    0,	 0,    0,    0
+	dd 0,	40,   38,    0,    0,	 0,    0,    0
+	dd 0,	32,  255,  -62,    0,	 0,    0,    0
+	dd 0,	 0,  104,    4,    0,	 0,    0,    0
+	dd 0,  -26,   -2,   47,  105, -208,    0,    0
+	dd 0, -185,   24,  117,  133, -134,   -6,    0
+.QuadraticTheirs:
+	dd 0,	 0,    0,    0,    0,	 0,    0,    0
+	dd 0,	36,    0,    0,    0,	 0,    0,    0
+	dd 0,	 9,   63,    0,    0,	 0,    0,    0
+	dd 0,	59,   65,   42,    0,	 0,    0,    0
+	dd 0,	46,   39,   24,  -24,	 0,    0,    0
+	dd 0,   97,  100,  -42,  137,  268,    0,    0
+
+end if

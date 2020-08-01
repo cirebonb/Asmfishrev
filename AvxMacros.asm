@@ -489,6 +489,20 @@ macro _vpxor a,b,c
     end if
 ; \}
 end macro
+;addition
+macro _vpor a,b,c
+; match =1, CPU_HAS_AVX1 \{
+;	      vpor  a, b, c
+; \}
+; match =0, CPU_HAS_AVX1 \{
+    if a eq b
+	       por  a, c
+    else
+	     movdqa  a, b
+	       por  a, c
+    end if
+; \}
+end macro
 
 macro _vmovd a,b
 ; match =1, CPU_HAS_AVX1 \{

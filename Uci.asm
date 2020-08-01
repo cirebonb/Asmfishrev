@@ -109,7 +109,7 @@ end if
 	    mov  al, byte[rsi]
 	   test  al, al
 	     jz  .Found
-	    add  rsi, 1
+	    inc	rsi	;add  rsi, 1
 	    cmp  al, ' '
 	    jae  .Next
 	; we have hit the new line char
@@ -562,35 +562,72 @@ UciParseMoves:
     ;     rsi string
     ; rax = 0 if full string could be parsed
     ;     = address of illegal move if there is one
-	   push  rbx rsi rdi
+		push	rbx rsi rdi
 .get_move:
-	   call  SkipSpaces
-	    xor  eax, eax
-	    cmp  byte[rsi], ' '
-	     jb  .done
-	   call  ParseUciMove
-	    mov  edi, eax
-	   test  eax, eax
-	    mov  rax, rsi
-	     jz  .done
-	    mov  ecx, 2
-	   call  Position_SetExtraCapacity
-	    mov  rbx, qword[rbp + Pos.state]
-	    mov  ecx, edi
-;	    mov  dword[rbx + sizeof.State+State.currentMove], edi
-	   call  Move_GivesCheck			;ecx safe
-;	    mov  ecx, edi
-	    mov  byte[rbx + State.givesCheck], al
-	   call  Move_Do__UciParseMoves
-	    inc  dword[rbp + Pos.gamePly]
-	    mov  qword[rbp + Pos.state], rbx
-	    jmp  .get_move
+		xor	eax, eax
+	@@:
+		inc	rsi
+		cmp	byte[rsi-1], ' '
+		je	@b
+		jb	.done
+		dec	rsi
+		mov	rcx, qword[rbp+Pos.state]
+		add	rcx, 2*sizeof.State
+		cmp	rcx, qword[rbp+Pos.stateEnd]
+		jb	@f
+		call	Position_SetExtraCapacity.realloc
+@@:
+		mov	rbx, qword[rbp + Pos.state]
+		call	Konvertmove
+		test	eax,eax
+		jz	.done
+		mov	ecx, eax
+		mov	byte[rbx + State.givesCheck], 0
+		call	Move_Do__UciParseMoves
+		inc	dword[rbp + Pos.gamePly]
+		mov	qword[rbp + Pos.state], rbx
+		jmp	.get_move
 .done:
-	    pop  rdi rcx rbx
-	    ret
 
+		mov	rbx, qword[rbp + Pos.state]
+		mov	eax, dword[rbp+Pos.sideToMove]
+		mov	edx,eax
+		xor	edx,1
+		shl	eax, 6+3
+		movzx	ecx,byte[rbx+State.ourKsq]
 
+		mov	rax, qword[WhitePawnAttacks+rax+8*rcx]
+		and	rax, qword[rbp+Pos.typeBB+8*Pawn]
 
+		mov	r11, qword[KnightAttacks+8*rcx]
+		and	r11, qword[rbp+Pos.typeBB+8*Knight]
+		 or	rax, r11
+
+	RookAttacks	r11, rcx, qword[rbx+State.Occupied], r10
+		and	r11, qword[rbx+State.checkSq]
+		 or	rax, r11
+
+      BishopAttacks	r11, rcx, qword[rbx+State.Occupied], r10
+		and	r11, qword[rbx+State.checkSq+8]
+		 or	rax, r11
+
+		or	ecx,-1
+		and	rax, qword[rbp+Pos.typeBB+8*rdx]
+		mov	qword[rbx+State.checkersBB], rax
+		cmovnz	eax,ecx
+		mov	byte[rbx -sizeof.State+ State.givesCheck], al
+
+if	1
+		mov	edi,dword[rbx+State.materialIdx]
+		test	edi,edi
+		jns	@f
+		call	IsMaterialNormal
+		mov	dword[rbx+State.materialIdx], edi
+	@@:
+end if
+		xor	eax,eax
+		pop	rdi rcx rbx
+		ret
 ;;;;;;;;;;;;
 ; setoption
 ;;;;;;;;;;;;
@@ -772,14 +809,6 @@ if USE_WEAKNESS = 1
 	    lea  rcx, [sz_uci_elo]
 	   call  CmpStringCaseless
 	    lea  rbx, [.UciElo]
-	   test  eax, eax
-	    jnz  .CheckValue
-end if
-
-if USE_VARIETY = 1
-	    lea  rcx, [sz_variety]
-	   call  CmpStringCaseless
-	    lea  rbx, [.Variety]
 	   test  eax, eax
 	    jnz  .CheckValue
 end if
@@ -1068,40 +1097,6 @@ if USE_WEAKNESS = 1
 	    jmp  UciGetInput
 end if
 
-if USE_VARIETY = 1
-.Variety:
-	   call  ParseInteger
-    ClampSigned  eax, 0, 100
-	    lea  rdx, [variety]
-	_vxorps  xmm0, xmm0, xmm0
-       _vmovaps  dqword[rdx + Variety.a_float], xmm0
-       _vmovaps  dqword[rdx + Variety.b_float], xmm0
-       _vmovaps  dqword[rdx + Variety.clamp], xmm0
-       _vmovaps  dqword[rdx + Variety.a_bound], xmm0    ; clear b_bound also
-	   test  eax, eax
-	     jz  UciGetInput
-     _vcvtsi2ss  xmm0, xmm0, eax
-       _vmovaps  xmm1, dqword[.two]
-       _vmovaps  xmm2, dqword[.epsilon]
-    _vpunpckldq  xmm0, xmm0, xmm0
-    _vpunpckldq  xmm0, xmm0, xmm0
-	_vdivps  xmm1, xmm1, xmm0
-	_vmulps  xmm2, xmm2, xmm0
-       _vmovaps  dqword[rdx + Variety.a_float], xmm0
-       _vmovaps  dqword[rdx + Variety.b_float], xmm1
-       _vmovaps  dqword[rdx + Variety.clamp], xmm2
-	    lea  eax, [4*rax]
-	    lea  ecx, [2*rax+1000]
-	    mov  dword[rdx + Variety.a_bound], eax
-	    mov  dword[rdx + Variety.b_bound], ecx
-	    jmp  UciGetInput
-
-	  align  16
-.two:     dd -2.0, -2.0, -2.0, -2.0
-.epsilon: dd -0.9999997, -0.9999997, -0.9999997, -0.9999997
-end if
-
-
 ;;;;;;;;;;;;
 ; *extras*
 ;;;;;;;;;;;;
@@ -1338,7 +1333,7 @@ UciDoNull:
 	   call  Move_DoNull
 ;	   jz  draw
 	    mov  qword[rbp + Pos.state], rbx
-;	   call  SetCheckInfo
+;removed	   call  SetCheckInfo
 	    jmp  UciShow
 
 UciShow:
@@ -1373,28 +1368,21 @@ UciMoves:
 
 UciEval:
 	    mov  rbx, qword[rbp+Pos.state]
-    ; allocate pawn hash
-	    mov  ecx, PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry
-	   call  Os_VirtualAlloc
-	    mov  qword[rbp+Pos.pawnTable], rax
-    ; allocate material hash
-	    mov  ecx, MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry
-	   call  Os_VirtualAlloc
-	    mov  qword[rbp+Pos.materialTable], rax
-	   call  Evaluate
-	    mov  r15d, eax
-    ; free material hash
-	    mov  rcx, qword[rbp+Pos.materialTable]
-	    mov  edx, MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry
-	   call  Os_VirtualFree
-	    xor  eax, eax
-	    mov  qword[rbp+Pos.materialTable], rax
-    ; free pawn hash
-	    mov  rcx, qword[rbp+Pos.pawnTable]
-	    mov  edx, PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry
-	   call  Os_VirtualFree
-	    xor  eax, eax
-	    mov  qword[rbp+Pos.pawnTable], rax
+    ; allocate pawn hash + allocate material hash
+		mov	ecx, PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry +MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry
+		call	Os_VirtualAlloc
+		lea	rcx,[rax+PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry]
+		mov	qword[rbp+Pos.pawnTable], rax
+		mov	qword[rbp+Pos.materialTable], rcx
+		call	Evaluate
+		mov	r15d, eax
+    ; free pawn hash + free material hash
+		mov	rcx, qword[rbp+Pos.pawnTable]
+		mov	edx, PAWN_HASH_ENTRY_COUNT*sizeof.PawnEntry + MATERIAL_HASH_ENTRY_COUNT*sizeof.MaterialEntry
+		call	Os_VirtualFree
+		xor	eax, eax
+		mov	qword[rbp+Pos.pawnTable], rax
+		mov	qword[rbp+Pos.materialTable], rax
 
 	    lea  rdi, [Output]
 	 movsxd  rax, r15d

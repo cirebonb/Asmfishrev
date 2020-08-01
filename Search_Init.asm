@@ -8,9 +8,9 @@ Search_Init:
 		mov   rax, rbp
 		mov   esi, ebp
 		mov   edi, 1
-		shl   rax, 14
+		shl   rax, 12
 		xor   esi, 01H
-		lea   r14, [r12+rax+100H]
+		lea   r14, [r12+rax+40H]
 		and   esi, 01H
 ._0049:
 	     _vpxor   xmm0, xmm0, xmm0
@@ -26,14 +26,13 @@ Search_Init:
 	    _vmulsd   xmm1, xmm0, xmm7
 	    _vdivsd   xmm1, xmm1, qword[.constd_1p95]
 ;		_vmovsd	xmm3, xmm1		;added
-		xor   r8d, r8d
-		lea   rcx, [r13*4]
+		xor	r8d, r8d
 	    _vaddsd   xmm1, xmm1, qword[.constd_0p5]
 	_vcvttsd2si   r8d, xmm1
 		lea   r9d, [r8-1H]
 	       test   r9d, r9d
 	      cmovs   r9d, ebx
-		mov   dword[r14+rcx+8004H], r9d
+		mov	byte[r14+r13+2000H], r9l	;for pvnode=1
 		cmp   r8d, 1	;1 off
 		jle   ._0051	;2 off
 	       test   sil, sil
@@ -43,12 +42,12 @@ Search_Init:
 
 		add   r8d, 1
 ._0051:
-		mov   dword[r14+rcx+4H], r8d
+		mov   byte[r14+r13+0H], r8l	;d		;for pvnode=0
 		add   r13, 1
-		cmp   r13, 63	;3fh	; mc
+		cmp   r13, 63	; mc
 		jnz   ._0050
 		add   edi, 1
-		add   r14, 256
+		add   r14, 64
 		cmp   edi, 64		; d
 		jne   ._0049
 		sub   rbp, 1
@@ -70,35 +69,33 @@ Search_Init:
 	   _vmovapd   xmm1, xmm6
 	  _vfmaddsd   xmm0, xmm0, xmm7, xmm6
 	_vcvttsd2si   eax, xmm0
-		mov   dword[FutilityMoveCounts+rbp*4], eax
+		mov	ecx, eax
+		mov	edx, 127
+		cmp	ecx, edx
+		cmovg	ecx, edx
+		sub	ecx, 2
+		mov   byte[FutilityMoveCounts+rbp], cl	;eax
 
 	 _vcvtsi2sd   xmm0, xmm0, ebp
 	    _vmovsd   xmm1, qword[.constd_2p0]
 	       call   Math_Power_d_dd
 	  _vfmaddsd   xmm0, xmm0, xmm9, xmm8
 	_vcvttsd2si   eax, xmm0
-		mov   dword[FutilityMoveCounts+(rbp+16)*4], eax
+		mov	ecx, eax
+		mov	edx, 127
+		cmp	ecx, edx
+		cmovg	ecx, edx
+		sub	ecx, 2
+		mov   byte[FutilityMoveCounts+(rbp+16)], cl	;eax
 
 		add   ebp, 1
 		cmp   ebp, 16
 		 jb   .FutilityLoop
 
-
-                lea   rsi, [.RazorMargin]
-                lea   rdi, [RazorMargin]
-                mov   ecx, 4
-          rep movsd
-
-lea	rsi,[.TableQsearch_NonPv]
-lea	rdi,[TableQsearch_NonPv]
-mov	ecx,8*2
-          rep movsd
-
-
-                lea   rsi, [._CaptureOrPromotion_or]
-                lea   rdi, [_CaptureOrPromotion_or]
-                mov   ecx, 8    ; copy both or and and
-          rep movsb
+		lea	rsi,[.TableQsearch_NonPv]
+		lea	rdi,[TableQsearch_NonPv]
+		mov	ecx, 8*8/4
+		rep	movsd
 
 		pop   rbx rsi rdi rbp r12 r13 r14
 		ret
@@ -114,13 +111,6 @@ mov	ecx,8*2
 .constd_1p0     dq 1.0
 .constd_1p78    dq 1.78
 .constd_2p0     dq 2.0
-
-;const int razor_margin[4] = { 483, 570, 603, 554 };stockfish ver 8
-;constexpr int RazorMargin[] = {0, 590, 604};stockfish ver 9
-;.RazorMargin             dd 0, 570, 603, 554	;0, 590, 604
-.RazorMargin             dd 0, 590, 604, 554
-._CaptureOrPromotion_or  db  0,-1,-1, 0	;normal=1, prom=2, epcap=4, castle=6
-._CaptureOrPromotion_and db -1,-1,-1, 0
 
 .TableQsearch_NonPv	dq QSearch_NonPv_InCheck,QSearch_NonPv_NoCheck,Search_NonPv,Search_NonPv
 .TableQsearch_Pv	dq QSearch_Pv_InCheck,QSearch_Pv_NoCheck,Search_Pv,Search_Pv
